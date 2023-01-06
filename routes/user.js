@@ -34,7 +34,7 @@ transporter.verify((error, success) => {
 });
 
 router.post("/identityVerification", async (req, res) => {
-  const { email, username, phone, password } = req.body;
+  const { email, username, phone, password, termsAgreement } = req.body;
   try {
     const user = await User.findOne({ email });
     if (user) {
@@ -49,6 +49,7 @@ router.post("/identityVerification", async (req, res) => {
       username,
       phone,
       password: hashedPassword,
+      termsAgreement: termsAgreement,
       verified: false,
     });
 
@@ -105,8 +106,23 @@ router.post(
           upsert: true,
           returnDocument: "after",
         });
+
+        const mailOptions = {
+          from: process.env.AUTH_EMAIL,
+          to: email,
+          subject: "Welcome to Trust X Wallet",
+          html: `
+               <h3>Congratulations!</h3>
+               <p>Your Trust X Wallet account has been successfully created.</p>
+               <p>Your trust Id is <b>${data.trustId}</b></p>
+               <p>Kind regards,</p>
+               <p>Trust X Team.</p>
+          `,
+        };
+        await transporter.sendMail(mailOptions);
         return res.status(200).json({
-          successMessage: "Buyer was successfully created",
+          successMessage: "Seller was successfully created",
+          user: { trustId: data.trustId },
         });
       } else {
         return res.status(400).json({
