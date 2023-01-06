@@ -119,6 +119,7 @@ router.post(
                <p>Trust X Team.</p>
           `,
         };
+
         await transporter.sendMail(mailOptions);
         return res.status(200).json({
           successMessage: "Seller was successfully created",
@@ -187,7 +188,7 @@ const sendOTPVerificationEmail = async ({ _id, email }, res) => {
            <p>A One Time Password has been sent to ${email}</p>
            <p>Please enter the OTP ${otp} to verify your Email Address. If you cannot see the email from 'sandbox.mgsend.net' in your inbox.</p>
            <p>make sure to check your SPAM folder</p>
-            <p>This code <b>expires in 1 hour</b>.</p>
+            <p>This code <b>expires in 10 minutes</b>.</p>
       `,
     };
 
@@ -196,7 +197,7 @@ const sendOTPVerificationEmail = async ({ _id, email }, res) => {
     const newOTPVerification = await new OTPVerification({
       userId: _id,
       otp: hashedOtp,
-      expiresAt: Date.now() + 3600000,
+      expiresAt: Date.now() + 600000,
       createdAt: Date.now(),
     });
     await newOTPVerification.save();
