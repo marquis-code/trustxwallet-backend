@@ -101,7 +101,7 @@ router.post(
           cloudinary_id: upload_response.public_id,
           trustId: generated_trust_id,
         };
-        await User.findOneAndUpdate(email, data, {
+        const updatedUser = await User.findOneAndUpdate(email, data, {
           returnOriginal: false,
           upsert: true,
           returnDocument: "after",
@@ -122,7 +122,10 @@ router.post(
         await transporter.sendMail(mailOptions);
         return res.status(200).json({
           successMessage: "Seller was successfully created",
-          user: { trustId: data.trustId },
+          user: {
+            username: updatedUser.username,
+            trustId: updatedUser.trustId,
+          },
         });
       } else {
         return res.status(400).json({

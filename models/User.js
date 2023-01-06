@@ -20,7 +20,7 @@ let UserSchema = new mongoose.Schema(
     password: {
       type: String,
     },
-    tags: { type: [String], default: undefined },
+    goods: { type: [String], default: undefined },
     alternative_email: {
       type: String,
     },
@@ -37,6 +37,18 @@ let UserSchema = new mongoose.Schema(
     termsAgreement: {
       type: Boolean,
       default: false,
+    },
+    wallet: {
+      type: String,
+      default: "0",
+    },
+    successfulTransactions: {
+      type: String,
+      default: "0",
+    },
+    transactionsInDispute: {
+      type: String,
+      default: "0",
     },
   },
   {
