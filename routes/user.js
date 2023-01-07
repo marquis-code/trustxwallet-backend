@@ -82,57 +82,57 @@ router.post(
           .status(400)
           .json({ errorMessage: "Please upload  profile image" });
       }
-      let user = await User.findOne({ email });
+      let user = await User.findOne({ email: email, verified: true });
+      console.log(user);
       if (!user) {
         return res.status(400).json({ errorMessage: "User not found" });
       }
-      const upload_response = await cloudinary.uploader.upload(req.file.path);
-      if (user.verified && upload_response) {
-        const generated_trust_id = randomstring.generate({
-          length: 12,
-          charset: "alphanumeric",
-          capitalization: "uppercase",
-        });
-        const data = {
-          alternative_email,
-          alternative_phone,
-          goods,
-          avatar: upload_response.url,
-          cloudinary_id: upload_response.public_id,
-          trustId: generated_trust_id,
-        };
-        const updatedUser = await User.findOneAndUpdate(email, data, {
-          returnOriginal: false,
-          upsert: true,
-          returnDocument: "after",
-        });
 
-        const mailOptions = {
-          from: process.env.AUTH_EMAIL,
-          to: email,
-          subject: "Welcome to Trust X Wallet",
-          html: `
+      const upload_response = await cloudinary.uploader.upload(req.file.path);
+      const generated_trust_id = randomstring.generate({
+        length: 12,
+        charset: "alphanumeric",
+        capitalization: "uppercase",
+      });
+      const data = {
+        alternative_email,
+        alternative_phone,
+        goods,
+        avatar: upload_response.url,
+        cloudinary_id: upload_response.public_id,
+        trustId: generated_trust_id,
+      };
+      const updatedUser = await User.findOneAndUpdate(
+        { email: req.body.email },
+        data,
+        {
+          returnDocument: "after",
+        }
+      );
+
+      console.log(updatedUser, "updated user");
+
+      const mailOptions = {
+        from: process.env.AUTH_EMAIL,
+        to: email,
+        subject: "Welcome to Trust X Wallet",
+        html: `
                <h3>Congratulations!</h3>
                <p>Your Trust X Wallet account has been successfully created.</p>
                <p>Your trust Id is <b>${data.trustId}</b></p>
                <p>Kind regards,</p>
                <p>Trust X Team.</p>
           `,
-        };
+      };
 
-        await transporter.sendMail(mailOptions);
-        return res.status(200).json({
-          successMessage: "Seller was successfully created",
-          user: {
-            username: updatedUser.username,
-            trustId: updatedUser.trustId,
-          },
-        });
-      } else {
-        return res.status(400).json({
-          errorMessage: "User not verified, please signup",
-        });
-      }
+      await transporter.sendMail(mailOptions);
+      return res.status(200).json({
+        successMessage: "Seller was successfully created",
+        user: {
+          username: updatedUser.username,
+          trustId: updatedUser.trustId,
+        },
+      });
     } catch (error) {
       return res.status(500).json({
         errorMessage: "Something went wrong. Plaese try again!",
@@ -168,12 +168,18 @@ router.post("/signin", async (req, res) => {
       const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRE,
       });
-      return res.status(200).json({ accessToken, user: { modifiedUser } });
+      const user = {
+        username: user.username,
+        trustId: user.trustId,
+        email: user.email,
+      };
+      return res.status(200).json({ accessToken, user });
     }
   } catch (error) {
-    return res
-      .status(500)
-      .json({ errorMessage: "Something went wrong, please try again." });
+    console.log(error);
+    // return res
+    //   .status(500)
+    //   .json({ errorMessage: "Something went wrong, please try again." });
   }
 });
 
