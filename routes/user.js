@@ -146,6 +146,7 @@ router.post("/signin", async (req, res) => {
 
   try {
     const user = await User.findOne({ trustId }).select("+password");
+    console.log(user);
     if (!user) {
       return res.status(404).json({ errorMessage: "User Not Found" });
     }
@@ -154,32 +155,30 @@ router.post("/signin", async (req, res) => {
       return res.status(404).json({
         errorMessage: "Email has not been verified yet. Check your inbox.",
       });
-    } else {
-      const isMatchPassword = bcrypt.compare(password, user.password);
-
-      if (!isMatchPassword) {
-        return res
-          .status(400)
-          .json({ errorMessage: "Invalid Login Credentials" });
-      }
-
-      const jwtPayload = { _id: user._id };
-
-      const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRE,
-      });
-      const user = {
-        username: user.username,
-        trustId: user.trustId,
-        email: user.email,
-      };
-      return res.status(200).json({ accessToken, user });
     }
+    const isMatchPassword = bcrypt.compare(password, user.password);
+
+    if (!isMatchPassword) {
+      return res
+        .status(400)
+        .json({ errorMessage: "Invalid Login Credentials" });
+    }
+
+    const jwtPayload = { _id: user._id };
+
+    const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRE,
+    });
+    const data = {
+      username: user.username,
+      trustId: user.trustId,
+      email: user.email,
+    };
+    return res.status(200).json({ accessToken, data });
   } catch (error) {
-    console.log(error);
-    // return res
-    //   .status(500)
-    //   .json({ errorMessage: "Something went wrong, please try again." });
+    return res
+      .status(500)
+      .json({ errorMessage: "Something went wrong, please try again." });
   }
 });
 
