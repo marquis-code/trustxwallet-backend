@@ -169,12 +169,14 @@ router.post("/signin", async (req, res) => {
     const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRE,
     });
-    const data = {
-      username: user.username,
-      trustId: user.trustId,
-      email: user.email,
-    };
-    return res.status(200).json({ accessToken, data });
+    return res.status(200).json({
+      successMessage: "Login was successful",
+      user: {
+        username: user.username,
+        trustId: user.trustId,
+        email: user.email,
+      },
+    });
   } catch (error) {
     return res
       .status(500)
