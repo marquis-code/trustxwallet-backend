@@ -12,6 +12,11 @@ require("dotenv").config();
 const randomstring = require("randomstring");
 const cloudinary = require("../utils/cloudinary");
 const upload = require("../utils/multer");
+const {
+  startPayment,
+  createPayment,
+  getPayment,
+} = require("../controllers/payment");
 
 const auth = {
   auth: {
@@ -220,6 +225,44 @@ const sendOTPVerificationEmail = async ({ _id, email }, res) => {
   }
 };
 
+const sendPaymentConfirmationEmail = async ({ firstName, lastName, amount, email }, res) => {
+  try {
+    let ts = Date.now();
+    let date_ob = new Date(ts);
+    let date = date_ob.getDate();
+    let month = date_ob.getMonth() + 1;
+    let year = date_ob.getFullYear();   
+    let hours = date_ob.getHours();
+    let minutes = date_ob.getMinutes();
+    let seconds = date_ob.getSeconds();
+
+    const mailOptions = {
+      from: process.env.AUTH_EMAIL,
+      to: email,
+      subject: "Payment Acknowledgement",
+      html: `
+           <h1>Hello, ${firstName} ${lastName}</h1>
+           <p>Thanks for your recent payment that you made on date ${date + "-" + month + "-" + year} at ${hours + ":" + minutes + ":" + seconds} for the amount of ${amount}</p>
+           <p>This is a confirmation that NGN${amount} has been successfully recieved and deposited in your account.</p>
+
+           <p>If you have any questions, reach out to us at hello@trustxwallet.com</p>
+
+           <h3>Team Trust X</h3>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return res.status(200).json({
+      successMessage: "Payment confirmation email sent",
+      // data: { userId: _id, email },
+    });
+  } catch (error) {
+    return res.status(200).json({
+      errorMessage: error.messages,
+    });
+  }
+};
+
 router.post("/verifyOtp", async (req, res) => {
   try {
     const { userId, otp } = req.body;
@@ -288,4 +331,87 @@ router.post("/resendOTPVerificationCode", async (req, res) => {
   }
 });
 
+router.post("/transaction", async (req, res) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      amount,
+      billingAddress,
+      postalCode,
+      reference,
+      status,
+    } = req.body;
+    if (!userId || !email) {
+      return res.status(400).json({
+        errorMessage: "Empty user details are not allowed.",
+      });
+    } else {
+      const payment = new Payment({
+        firstName,
+        lastName,
+        email,
+        phone,
+        amount,
+        billingAddress,
+        postalCode,
+        reference,
+        status,
+      });
+
+      payment
+        .save()
+        .then((result) => {
+          sendPaymentConfirmationEmail(result, res);
+        })
+        .catch((error) => {
+          return res.json({
+            errorMessage:
+              "Something went wrong, while saving payment, please try again.",
+          });
+        });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      errorMessage: error.message,
+    });
+  }
+});
+
+router.post("/initializePayment", startPayment);
+router.get("/createPayment", createPayment);
+router.get("/paymentDetails", getPayment);
+
+// router.post("/payment/verify", async (req, res) => {
+//   const ref = req.query.reference;
+//   let output;
+//   await axios
+//     .get(`https://api.paystack.co/transaction/verify/${ref}`, {
+//       headers: {
+//         authorization: "Bearer TEST SECRET KEY",
+//         //replace TEST SECRET KEY with your actual test secret
+//         //key from paystack
+//         "content-type": "application/json",
+//         "cache-control": "no-cache",
+//       },
+//     })
+//     .then((success) => {
+//       output = success;
+//     })
+//     .catch((error) => {
+//       output = error;
+//     });
+
+//   //now we check for internet connectivity issues
+//   if (!output.response && output.status !== 200)
+//     throw new UserInputError("No internet Connection");
+
+//   if (output.response && !output.response.data.status)
+//     throw new UserInputError("Error verifying payment");
+
+//   //we return the output of the transaction
+//   res.status(200).send("Payment was successfully verified");
+// });
 module.exports = router;
