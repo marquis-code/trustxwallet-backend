@@ -277,6 +277,9 @@ const sendPaymentConfirmationEmail = async (
 router.post("/verifyOtp", async (req, res) => {
   try {
     const { userId, otp } = req.body;
+
+    const user = await User.findOne({ _id: userId });
+
     if (!userId || !otp) {
       return res.status(400).json({
         errorMessage: "Empty OTP details are not allowed.",
@@ -310,9 +313,32 @@ router.post("/verifyOtp", async (req, res) => {
           } else {
             await User.updateOne({ _id: userId }, { verified: true });
             await OTPVerification.deleteMany({ userId });
-            return res.status(200).json({
-              successMessage: "Email has been verified.",
-            });
+
+            if (user.userType === "buyer") {
+              return res.status(200).json({
+                successMessage: "Email has been verified.",
+                user: {
+                  userType: user.userType,
+                  userId: user._id,
+                  username: user.username,
+                  email: user.email,
+                },
+              });
+            } else {
+              return res.status(200).json({
+                successMessage: "Email has been verified.",
+                user: {
+                  userType: user.userType,
+                  userId: user._id,
+                  username: user.username,
+                  email: user.email,
+                  wallet: user.wallet,
+                  successfulTransactions: user.successfulTransactions,
+                  transactionsInDispute: user.transactionsInDispute,
+                  trustId: user.trustId,
+                },
+              });
+            }
           }
         }
       }
