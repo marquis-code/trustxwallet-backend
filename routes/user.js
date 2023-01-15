@@ -117,7 +117,7 @@ router.post(
         }
       );
 
-      const trustLink = `${process.env.CLIENT_URL}/seller/${data.trustId}`;
+      const trustLink = `${process.env.CLIENT_URL}seller/${data.trustId}`;
 
       const mailOptions = {
         from: process.env.AUTH_EMAIL,
@@ -127,7 +127,7 @@ router.post(
                <h3>Congratulations!</h3>
                <p>Your Trust X Wallet account has been successfully created.</p>
                <p>Your trust Id is <b>${data.trustId}</b></p>
-               <p>Your trust link is <b>${trustLink}</b></p>
+               <p>Your trust x payment link is <b>${trustLink}</b></p>
                <p>Kind regards,</p>
                <p>Trust X Team.</p>
           `,
