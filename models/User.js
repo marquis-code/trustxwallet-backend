@@ -50,6 +50,11 @@ let UserSchema = new mongoose.Schema(
       type: String,
       default: "0",
     },
+    userType : {
+      type: String,
+      enum : ["buyer", "seller"],
+      default : "seller"
+    }
   },
   {
     timestamps: true,

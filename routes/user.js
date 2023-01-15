@@ -39,7 +39,8 @@ transporter.verify((error, success) => {
 });
 
 router.post("/identityVerification", async (req, res) => {
-  const { email, username, phone, password, termsAgreement } = req.body;
+  const { email, username, phone, password, termsAgreement, userType } =
+    req.body;
   try {
     const user = await User.findOne({ email });
     if (user) {
@@ -56,6 +57,7 @@ router.post("/identityVerification", async (req, res) => {
       password: hashedPassword,
       termsAgreement: termsAgreement,
       verified: false,
+      userType,
     });
 
     newUser
@@ -115,7 +117,7 @@ router.post(
         }
       );
 
-      console.log(updatedUser, "updated user");
+      const trustLink = `${process.env.CLIENT_URL}/seller/${data.trustId}`;
 
       const mailOptions = {
         from: process.env.AUTH_EMAIL,
@@ -125,6 +127,7 @@ router.post(
                <h3>Congratulations!</h3>
                <p>Your Trust X Wallet account has been successfully created.</p>
                <p>Your trust Id is <b>${data.trustId}</b></p>
+               <p>Your trust link is <b>${trustLink}</b></p>
                <p>Kind regards,</p>
                <p>Trust X Team.</p>
           `,
@@ -133,6 +136,7 @@ router.post(
       await transporter.sendMail(mailOptions);
       return res.status(200).json({
         successMessage: "Seller was successfully created",
+
         user: {
           username: updatedUser.username,
           trustId: updatedUser.trustId,
@@ -225,13 +229,16 @@ const sendOTPVerificationEmail = async ({ _id, email }, res) => {
   }
 };
 
-const sendPaymentConfirmationEmail = async ({ firstName, lastName, amount, email }, res) => {
+const sendPaymentConfirmationEmail = async (
+  { firstName, lastName, amount, email },
+  res
+) => {
   try {
     let ts = Date.now();
     let date_ob = new Date(ts);
     let date = date_ob.getDate();
     let month = date_ob.getMonth() + 1;
-    let year = date_ob.getFullYear();   
+    let year = date_ob.getFullYear();
     let hours = date_ob.getHours();
     let minutes = date_ob.getMinutes();
     let seconds = date_ob.getSeconds();
@@ -242,7 +249,11 @@ const sendPaymentConfirmationEmail = async ({ firstName, lastName, amount, email
       subject: "Payment Acknowledgement",
       html: `
            <h1>Hello, ${firstName} ${lastName}</h1>
-           <p>Thanks for your recent payment that you made on date ${date + "-" + month + "-" + year} at ${hours + ":" + minutes + ":" + seconds} for the amount of ${amount}</p>
+           <p>Thanks for your recent payment that you made on date ${
+             date + "-" + month + "-" + year
+           } at ${
+        hours + ":" + minutes + ":" + seconds
+      } for the amount of ${amount}</p>
            <p>This is a confirmation that NGN${amount} has been successfully recieved and deposited in your account.</p>
 
            <p>If you have any questions, reach out to us at hello@trustxwallet.com</p>
@@ -379,10 +390,6 @@ router.post("/transaction", async (req, res) => {
     });
   }
 });
-
-router.post("/initializePayment", startPayment);
-router.get("/createPayment", createPayment);
-router.get("/paymentDetails", getPayment);
 
 // router.post("/payment/verify", async (req, res) => {
 //   const ref = req.query.reference;
