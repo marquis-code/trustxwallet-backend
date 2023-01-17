@@ -39,7 +39,7 @@ let UserSchema = new mongoose.Schema(
       default: false,
     },
     wallet: {
-      type: String,
+      type: Number,
       default: "0",
     },
     successfulTransactions: {

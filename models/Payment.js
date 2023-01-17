@@ -1,39 +1,29 @@
 const mongoose = require("mongoose");
-
 const PaymentSchema = new mongoose.Schema(
   {
-    firstName: {
+    trustId: {
       type: String,
-      required: true,
-    },
-    lastName: {
-      type: String,
-      required: true,
-    },
-    email: {
-      type: String,
-      required: true,
-    },
-    phone: {
-      type: String,
-      required: true,
     },
     amount: {
       type: Number,
       required: true,
     },
-    billingAddress: {
+    address: {
       type: String,
       required: true,
     },
-    postalCode: {
-      type: Number,
+    deliveryDuration: {
+      type: String,
       required: true,
     },
     reference: {
       type: String,
       required: true,
       unique: true,
+    },
+    commodities : {
+      type : [String],
+      required: true,
     },
     status: {
       type: String,
