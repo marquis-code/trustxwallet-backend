@@ -190,6 +190,49 @@ router.post("/signin", async (req, res) => {
   }
 });
 
+router.post("/buyer-signin", async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await User.findOne({ email }).select("+password");
+    console.log(user);
+    if (!user) {
+      return res.status(404).json({ errorMessage: "User Not Found" });
+    }
+
+    if (!user.verified) {
+      return res.status(404).json({
+        errorMessage: "Email has not been verified yet. Check your inbox.",
+      });
+    }
+    const isMatchPassword = bcrypt.compare(password, user.password);
+
+    if (!isMatchPassword) {
+      return res
+        .status(400)
+        .json({ errorMessage: "Invalid Login Credentials" });
+    }
+
+    const jwtPayload = { _id: user._id };
+
+    const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRE,
+    });
+    return res.status(200).json({
+      successMessage: "Login was successful",
+      user: {
+        username: user.username,
+        email: user.email,
+        accessToken,
+      },
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ errorMessage: "Something went wrong, please try again." });
+  }
+});
+
 const sendOTPVerificationEmail = async ({ _id, email }, res) => {
   try {
     const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
@@ -375,7 +418,7 @@ router.post("/transaction", async (req, res) => {
       commodities,
       reference,
       status,
-      email
+      email,
     } = req.body;
 
     const user = await User.findOne({ trustId });
