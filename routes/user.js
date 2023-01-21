@@ -14,6 +14,7 @@ const randomstring = require("randomstring");
 const cloudinary = require("../utils/cloudinary");
 const upload = require("../utils/multer");
 const { response } = require("express");
+const nodeCron = require("node-cron");
 
 const auth = {
   auth: {
@@ -147,7 +148,7 @@ router.post(
   }
 );
 
-router.post("/signin", async (req, res) => {
+router.post("/seller-signin", async (req, res) => {
   const { trustId, password } = req.body;
 
   try {
@@ -195,7 +196,6 @@ router.post("/buyer-signin", async (req, res) => {
 
   try {
     const user = await User.findOne({ email }).select("+password");
-    console.log(user);
     if (!user) {
       return res.status(404).json({ errorMessage: "User Not Found" });
     }
@@ -263,56 +263,11 @@ const sendOTPVerificationEmail = async ({ _id, email }, res) => {
       data: { userId: _id, email },
     });
   } catch (error) {
-    return res.status(200).json({
+    return res.status(500).json({
       errorMessage: error.messages,
     });
   }
 };
-
-// const sendPaymentConfirmationEmail = async (
-//   { firstName, lastName, amount, email },
-//   res
-// ) => {
-//   try {
-//     let ts = Date.now();
-//     let date_ob = new Date(ts);
-//     let date = date_ob.getDate();
-//     let month = date_ob.getMonth() + 1;
-//     let year = date_ob.getFullYear();
-//     let hours = date_ob.getHours();
-//     let minutes = date_ob.getMinutes();
-//     let seconds = date_ob.getSeconds();
-
-//     const mailOptions = {
-//       from: process.env.AUTH_EMAIL,
-//       to: email,
-//       subject: "Payment Acknowledgement",
-//       html: `
-//            <h1>Hello, ${firstName} ${lastName}</h1>
-//            <p>Thanks for your recent payment that you made on date ${
-//              date + "-" + month + "-" + year
-//            } at ${
-//         hours + ":" + minutes + ":" + seconds
-//       } for the amount of ${amount}</p>
-//            <p>This is a confirmation that NGN${amount} has been successfully recieved and deposited in your account.</p>
-
-//            <p>If you have any questions, reach out to us at hello@trustxwallet.com</p>
-
-//            <h3>Team Trust X</h3>
-//       `,
-//     };
-
-//     await transporter.sendMail(mailOptions);
-//     return res.status(200).json({
-//       successMessage: "Payment confirmation email sent",
-//       // data: { userId: _id, email },
-//     });
-//   } catch (error) {
-//     return res.status(200).json({
-//       errorMessage: error.messages,
-//     });
-//   }
-// };
 
 router.post("/verifyOtp", async (req, res) => {
   try {
@@ -421,10 +376,19 @@ router.post("/transaction", async (req, res) => {
       email,
     } = req.body;
 
-    const user = await User.findOne({ trustId });
-    if (!user) {
+    const seller = await User.findOne({ trustId });
+
+    const buyer = await User.findOne({ email });
+
+    if (!seller) {
       return response.status(400).json({
         errorMessage: `Seller with trust Id ${trustId} does not exist`,
+      });
+    }
+
+    if (!buyer) {
+      return response.status(400).json({
+        errorMessage: `Buyer does not exist`,
       });
     }
 
@@ -442,15 +406,19 @@ router.post("/transaction", async (req, res) => {
       commodities,
       reference,
       status,
+      email,
+      withdrawalStatus: false,
     });
+
+    await handleCronJobs(buyer.email, buyer.username);
 
     await newPayment.save();
     const sellerMailOptions = {
       from: process.env.AUTH_EMAIL,
-      to: user.email,
+      to: seller.email,
       subject: "Confirmed Payment",
       html: `
-                 <h3>Hello, ${user.username}</h3>
+                 <h3>Hello, ${seller.username}</h3>
                  <p>A sum of NGN${amount} has been paid to your account for the following commodities ${commodities}</p>
                  <p>Commodities should be delivered to ${address}, between a duration of ${deliveryDuration}</b></p>
                  <p>Kind regards,</p>
@@ -463,7 +431,7 @@ router.post("/transaction", async (req, res) => {
       to: email,
       subject: "Confirmed Payment",
       html: `
-                 <h3>Hello, ${user.username}</h3>
+                 <h3>Hello, ${buyer.username}</h3>
                  <p>Your payment has been confirmed and your goods is on it's way</p>
                  <p>Below is a summary of payment and delivery details"</p>
                  <p>Address : ${address}</p>
@@ -478,15 +446,92 @@ router.post("/transaction", async (req, res) => {
 
     await transporter.sendMail(buyerMailOptions);
 
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(sellerMailOptions);
     return res.status(200).json({
       successMessage: "Seller has been successfully notified",
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ errorMessage: "Something went wrong, please try again." });
+    console.log(error);
+    // return res
+    //   .status(500)
+    //   .json({ errorMessage: "Something went wrong, please try again." });
   }
+});
+
+const handleCronJobs = async (email, username) => {
+  cron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
+    sendCronReminderEmails(email, username);
+  });
+};
+
+const sendCronReminderEmails = async (email, username) => {
+  try {
+    const buyerMailReminderOptions = {
+      from: process.env.AUTH_EMAIL,
+      to: email,
+      subject: "Good's arrival reminder",
+      html: `
+             <h3>Hello ${username}</h3>
+             <p>This is a reminder that your goods is on it's way.</p>
+             <p>Please reach out if you have issues with the package recieved.</p>
+             <p>Kind regards,</p>
+             <p>Trust X Team.</p>
+        `,
+    };
+
+    await transporter.sendMail(buyerMailReminderOptions);
+  } catch (error) {
+    return res.status(500).json({
+      errorMessage: "Something went wrong while writing cron job emails.",
+    });
+  }
+};
+
+router.post("/confirm-goods", async (req, res) => {
+  const { reference, trustId, comments } = req.body;
+
+  const result = await Payment.findOne({ reference });
+  const seller = await User.findOne({ trustId });
+
+  if (!result) {
+    return res.status(400).json({ errorMessage: "Invalid payment referennce" });
+  }
+
+  const data = {
+    withdrawalStatus: true,
+  };
+
+  await Payment.findOneAndUpdate({ reference: req.body.reference }, data, {
+    returnDocument: "after",
+  });
+
+  await User.findOneAndUpdate(
+    { trustId },
+    {
+      successfulTransactions: 1,
+    },
+    {
+      returnDocument: "after",
+    }
+  );
+
+  const sellerMailOptions = {
+    from: process.env.AUTH_EMAIL,
+    to: seller.email,
+    subject: "Confirmed Goods",
+    html: `
+               <h3>Hello, ${seller.username}</h3>
+               <p>The buyer has successfully recieved the items.</p>
+               <p>Therefore, this trannsaction is complete and you can go ahead to withdraw from you wallet </p>
+               <p>Kind regards,</p>
+               <p>Trust X Team.</p>
+          `,
+  };
+
+  await transporter.sendMail(sellerMailOptions);
+  return res.status(200).json({
+    successMessage: "Thanks for confirming your goods.",
+  });
 });
 
 module.exports = router;

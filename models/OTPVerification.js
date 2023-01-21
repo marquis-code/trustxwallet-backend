@@ -8,6 +8,8 @@ let OTPVerificationSchema = new mongoose.Schema(
     },
     otp: {
       type: String,
+      minlength: 4,
+      maxlength: 4,
     },
     expiresAt: {
       type: Date,

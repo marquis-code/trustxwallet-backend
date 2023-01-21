@@ -29,6 +29,10 @@ const PaymentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    withdrawalStatus : {
+      type: Boolean,
+      default: false
+    }
   },
   {
     timestamps: true,

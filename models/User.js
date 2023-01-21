@@ -43,18 +43,24 @@ let UserSchema = new mongoose.Schema(
       default: "0",
     },
     successfulTransactions: {
-      type: String,
+      type: Number,
       default: "0",
     },
     transactionsInDispute: {
       type: String,
       default: "0",
     },
-    userType : {
+    userType: {
       type: String,
-      enum : ["buyer", "seller"],
-      default : "seller"
-    }
+      enum: ["buyer", "seller"],
+      default: "seller",
+    },
+    transactions: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Payment",
+      },
+    ],
   },
   {
     timestamps: true,
