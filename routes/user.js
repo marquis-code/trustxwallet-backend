@@ -13,7 +13,6 @@ require("dotenv").config();
 const randomstring = require("randomstring");
 const cloudinary = require("../utils/cloudinary");
 const upload = require("../utils/multer");
-const { response } = require("express");
 const nodeCron = require("node-cron");
 
 const auth = {
@@ -381,13 +380,13 @@ router.post("/transaction", async (req, res) => {
     const buyer = await User.findOne({ email });
 
     if (!seller) {
-      return response.status(400).json({
+      return res.status(400).json({
         errorMessage: `Seller with trust Id ${trustId} does not exist`,
       });
     }
 
     if (!buyer) {
-      return response.status(400).json({
+      return res.status(400).json({
         errorMessage: `Buyer does not exist`,
       });
     }
@@ -410,9 +409,10 @@ router.post("/transaction", async (req, res) => {
       withdrawalStatus: false,
     });
 
-    await handleCronJobs(buyer.email, buyer.username);
-
     await newPayment.save();
+
+    await handleCronJobs(buyer.email, buyer.username, res);
+
     const sellerMailOptions = {
       from: process.env.AUTH_EMAIL,
       to: seller.email,
@@ -458,32 +458,45 @@ router.post("/transaction", async (req, res) => {
   }
 });
 
-const handleCronJobs = async (email, username) => {
-  cron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
-    sendCronReminderEmails(email, username);
-  });
+// const handleCronJobs = async (email, username, res) => {
+//   try {
+//     nodeCron.schedule("* * * * * *", function () {
+//       sendCronReminderEmails(email, username, res);
+//     });
+//     // emailCron.stop();
+//   } catch (error) {
+//     console.log(error);
+//   }
+// };
+
+const handleCronJobs = async (email, username, res) => {
+  try {
+    cron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
+      sendCronReminderEmails(email, username, res);
+    });
+  } catch (error) {
+    console.log(error);
+  }
 };
 
-const sendCronReminderEmails = async (email, username) => {
+const sendCronReminderEmails = async (email, username, res) => {
   try {
     const buyerMailReminderOptions = {
       from: process.env.AUTH_EMAIL,
       to: email,
       subject: "Good's arrival reminder",
       html: `
-             <h3>Hello ${username}</h3>
-             <p>This is a reminder that your goods is on it's way.</p>
-             <p>Please reach out if you have issues with the package recieved.</p>
-             <p>Kind regards,</p>
-             <p>Trust X Team.</p>
-        `,
+               <h3>Hello ${username}</h3>
+               <p>This is a reminder that your goods is on it's way.</p>
+               <p>Please reach out if you have issues with the package recieved.</p>
+               <p>Kind regards,</p>
+               <p>Trust X Team.</p>
+          `,
     };
 
-    await transporter.sendMail(buyerMailReminderOptions);
+    return await transporter.sendMail(buyerMailReminderOptions);
   } catch (error) {
-    return res.status(500).json({
-      errorMessage: "Something went wrong while writing cron job emails.",
-    });
+    console.log(error);
   }
 };
 
