@@ -180,6 +180,7 @@ router.post("/seller-signin", async (req, res) => {
       user: {
         username: user.username,
         trustId: user.trustId,
+        userType: user.userType,
         email: user.email,
       },
     });
@@ -222,6 +223,7 @@ router.post("/buyer-signin", async (req, res) => {
       user: {
         username: user.username,
         email: user.email,
+        userType: user.userType,
         accessToken,
       },
     });
@@ -437,8 +439,9 @@ router.post("/transaction", async (req, res) => {
                  <p>Address : ${address}</p>
                  <p>Amount : ${amount}</p>
                  <p>Commodities Ordered : ${commodities}</p>
-                 <p>Delivery duration : ${deliveryDuration}</p>
-
+                 <p>Payment reference: ${reference}</p>
+                 <p>Date Item would be delivered : ${deliveryDuration}th of this month.</p>
+                 <small>Please Noted: Payment reference would be used to confirm the goods recieved.</small>
                  <p>Kind regards,</p>
                  <p>Trust X Team.</p>
             `,
@@ -512,6 +515,7 @@ router.post("/confirm-goods", async (req, res) => {
 
   const data = {
     withdrawalStatus: true,
+    comments: comments
   };
 
   await Payment.findOneAndUpdate({ reference: req.body.reference }, data, {

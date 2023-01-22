@@ -29,6 +29,9 @@ const PaymentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    comments: {
+      type : String
+    },
     withdrawalStatus : {
       type: Boolean,
       default: false
