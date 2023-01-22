@@ -411,7 +411,8 @@ router.post("/transaction", async (req, res) => {
       withdrawalStatus: false,
     });
 
-    await newPayment.save();
+    const response = await newPayment.save();
+    console.log(response);
 
     await handleCronJobs(buyer.email, buyer.username, res);
 
@@ -452,12 +453,14 @@ router.post("/transaction", async (req, res) => {
     await transporter.sendMail(sellerMailOptions);
     return res.status(200).json({
       successMessage: "Seller has been successfully notified",
+      paymentInfo: {
+        withdrawalStatus: response.withdrawalStatus,
+      },
     });
   } catch (error) {
-    console.log(error);
-    // return res
-    //   .status(500)
-    //   .json({ errorMessage: "Something went wrong, please try again." });
+    return res
+      .status(500)
+      .json({ errorMessage: "Something went wrong, please try again." });
   }
 });
 
@@ -474,7 +477,7 @@ router.post("/transaction", async (req, res) => {
 
 const handleCronJobs = async (email, username, res) => {
   try {
-    cron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
+    nodeCron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
       sendCronReminderEmails(email, username, res);
     });
   } catch (error) {
@@ -515,7 +518,7 @@ router.post("/confirm-goods", async (req, res) => {
 
   const data = {
     withdrawalStatus: true,
-    comments: comments
+    comments: comments,
   };
 
   await Payment.findOneAndUpdate({ reference: req.body.reference }, data, {
