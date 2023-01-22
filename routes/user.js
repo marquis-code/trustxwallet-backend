@@ -521,7 +521,7 @@ router.post("/confirm-goods", async (req, res) => {
     comments: comments,
   };
 
-  await Payment.findOneAndUpdate({ reference: req.body.reference }, data, {
+  const response = await Payment.findOneAndUpdate({ reference: req.body.reference }, data, {
     returnDocument: "after",
   });
 
@@ -551,6 +551,9 @@ router.post("/confirm-goods", async (req, res) => {
   await transporter.sendMail(sellerMailOptions);
   return res.status(200).json({
     successMessage: "Thanks for confirming your goods.",
+    paymentInfo : {
+      withdrawalStatus : response.withdrawalStatus
+    }
   });
 });
 
