@@ -14,6 +14,7 @@ const randomstring = require("randomstring");
 const cloudinary = require("../utils/cloudinary");
 const upload = require("../utils/multer");
 const nodeCron = require("node-cron");
+const axios = require("axios");
 
 const auth = {
   auth: {
@@ -57,17 +58,10 @@ router.post("/identityVerification", async (req, res) => {
       userType,
     });
 
-    newUser
-      .save()
-      .then((result) => {
-        sendOTPVerificationEmail(result, res);
-      })
-      .catch((error) => {
-        return res.json({
-          errorMessage:
-            "Something went wrong, while saving user account, please try again.",
-        });
-      });
+    let result = await newUser.save();
+    console.log(result);
+
+    await sendOTPVerificationEmail(result, res);
   } catch (error) {
     return res.json({
       errorMessage: "Something went wrong, please try again.",
@@ -234,7 +228,7 @@ router.post("/buyer-signin", async (req, res) => {
   }
 });
 
-const sendOTPVerificationEmail = async ({ _id, email }, res) => {
+const sendOTPVerificationEmail = async ({ _id, email }, res) => { 
   try {
     const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
     const mailOptions = {
@@ -247,7 +241,7 @@ const sendOTPVerificationEmail = async ({ _id, email }, res) => {
            <p>make sure to check your SPAM folder</p>
             <p>This code <b>expires in 10 minutes</b>.</p>
       `,
-    };
+    };   
 
     const saltRounds = 10;
     const hashedOtp = await bcrypt.hash(otp, saltRounds);
@@ -265,7 +259,7 @@ const sendOTPVerificationEmail = async ({ _id, email }, res) => {
     });
   } catch (error) {
     return res.status(500).json({
-      errorMessage: error.messages,
+      errorMessage: 'Something went wrong. Please try again.',
     });
   }
 };
@@ -412,7 +406,6 @@ router.post("/transaction", async (req, res) => {
     });
 
     const response = await newPayment.save();
-    console.log(response);
 
     await handleCronJobs(buyer.email, buyer.username, res);
 
@@ -521,9 +514,13 @@ router.post("/confirm-goods", async (req, res) => {
     comments: comments,
   };
 
-  const response = await Payment.findOneAndUpdate({ reference: req.body.reference }, data, {
-    returnDocument: "after",
-  });
+  const response = await Payment.findOneAndUpdate(
+    { reference: req.body.reference },
+    data,
+    {
+      returnDocument: "after",
+    }
+  );
 
   await User.findOneAndUpdate(
     { trustId },
@@ -551,9 +548,9 @@ router.post("/confirm-goods", async (req, res) => {
   await transporter.sendMail(sellerMailOptions);
   return res.status(200).json({
     successMessage: "Thanks for confirming your goods.",
-    paymentInfo : {
-      withdrawalStatus : response.withdrawalStatus
-    }
+    paymentInfo: {
+      withdrawalStatus: response.withdrawalStatus,
+    },
   });
 });
 
