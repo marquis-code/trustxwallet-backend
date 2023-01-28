@@ -228,7 +228,7 @@ router.post("/buyer-signin", async (req, res) => {
   }
 });
 
-const sendOTPVerificationEmail = async ({ _id, email }, res) => { 
+const sendOTPVerificationEmail = async ({ _id, email, username }, res) => { 
   try {
     const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
     const mailOptions = {
@@ -255,7 +255,7 @@ const sendOTPVerificationEmail = async ({ _id, email }, res) => {
     await transporter.sendMail(mailOptions);
     return res.status(200).json({
       successMessage: "Verification otp email sent.",
-      data: { userId: _id, email },
+      data: { userId: _id, email, username },
     });
   } catch (error) {
     return res.status(500).json({
