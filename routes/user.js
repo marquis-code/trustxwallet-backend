@@ -228,7 +228,7 @@ router.post("/buyer-signin", async (req, res) => {
   }
 });
 
-const sendOTPVerificationEmail = async ({ _id, email, username }, res) => { 
+const sendOTPVerificationEmail = async ({ _id, email, username }, res) => {
   try {
     const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
     const mailOptions = {
@@ -241,7 +241,7 @@ const sendOTPVerificationEmail = async ({ _id, email, username }, res) => {
            <p>make sure to check your SPAM folder</p>
             <p>This code <b>expires in 10 minutes</b>.</p>
       `,
-    };   
+    };
 
     const saltRounds = 10;
     const hashedOtp = await bcrypt.hash(otp, saltRounds);
@@ -259,7 +259,7 @@ const sendOTPVerificationEmail = async ({ _id, email, username }, res) => {
     });
   } catch (error) {
     return res.status(500).json({
-      errorMessage: 'Something went wrong. Please try again.',
+      errorMessage: "Something went wrong. Please try again.",
     });
   }
 };
@@ -525,7 +525,7 @@ router.post("/confirm-goods", async (req, res) => {
   await User.findOneAndUpdate(
     { trustId },
     {
-      successfulTransactions: 1,
+      successfulTransactions: (seller.successfulTransactions += 1),
     },
     {
       returnDocument: "after",
