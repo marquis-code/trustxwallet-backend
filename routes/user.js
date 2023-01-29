@@ -568,4 +568,29 @@ router.post("/confirm-goods", async (req, res) => {
   });
 });
 
+router.get("/logged-user/:email", async (req, res) => {
+  try {
+    const userEmail = req.params.email;
+    let result = await User.findOne({ userEmail });
+    const user = {
+      avatar: result.avatar,
+      username: result.username,
+      phone: result.phone,
+      email: result.email,
+      goods: result.goods,
+      wallet: result.wallet,
+      successfulTransactions: result.successfulTransactions,
+      transactionsInDispute: result.transactionsInDispute,
+      userType: result.userType,
+      transactions: result.transactions,
+    };
+
+    return res.status(200).json(user);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ errorMessage: "Something went wrong, Please try again." });
+  }
+});
+
 module.exports = router;
