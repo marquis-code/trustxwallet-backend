@@ -500,10 +500,11 @@ const sendCronReminderEmails = async (email, username, res) => {
 };
 
 router.post("/confirm-goods", async (req, res) => {
-  const { reference, trustId, comments } = req.body;
+  const { reference, trustId, comments, email } = req.body;
 
   const result = await Payment.findOne({ reference });
   const seller = await User.findOne({ trustId });
+  const buyer = await User.findOne({ email });
 
   if (!result) {
     return res.status(400).json({ errorMessage: "Invalid payment referennce" });
@@ -545,7 +546,20 @@ router.post("/confirm-goods", async (req, res) => {
           `,
   };
 
+  const buyerMailOptions = {
+    from: process.env.AUTH_EMAIL,
+    to: buyer.email,
+    subject: "Confirmed Goods",
+    html: `
+               <h3>Hello, ${buyer.username}</h3>
+               <p>Thanks for confirming your goods.</p>
+               <p>Kind regards,</p>
+               <p>Trust X Team.</p>
+          `,
+  };
+
   await transporter.sendMail(sellerMailOptions);
+  await transporter.sendMail(buyerMailOptions);
   return res.status(200).json({
     successMessage: "Thanks for confirming your goods.",
     paymentInfo: {
