@@ -59,7 +59,6 @@ router.post("/identityVerification", async (req, res) => {
     });
 
     let result = await newUser.save();
-    console.log(result);
 
     await sendOTPVerificationEmail(result, res);
   } catch (error) {
@@ -81,7 +80,6 @@ router.post(
           .json({ errorMessage: "Please upload  profile image" });
       }
       let user = await User.findOne({ email: email, verified: true });
-      console.log(user);
       if (!user) {
         return res.status(400).json({ errorMessage: "User not found" });
       }
@@ -146,7 +144,6 @@ router.post("/seller-signin", async (req, res) => {
 
   try {
     const user = await User.findOne({ trustId }).select("+password");
-    console.log(user);
     if (!user) {
       return res.status(404).json({ errorMessage: "User Not Found" });
     }
@@ -258,9 +255,17 @@ const sendOTPVerificationEmail = async ({ _id, email, username }, res) => {
       data: { userId: _id, email, username },
     });
   } catch (error) {
-    return res.status(500).json({
-      errorMessage: "Something went wrong. Please try again.",
-    });
+    if (error.status === 403) {
+      return res.status(403).json({
+        errorMessage:
+          "OOPS! This Recieprnt is not authorized on the email serveice. Please Upgrade your email plan",
+      });
+    } else {
+      return res.status(500).json({
+        errorMessage:
+          "Something went wrong.",
+      });
+    }
   }
 };
 
