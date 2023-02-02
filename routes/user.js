@@ -129,6 +129,7 @@ router.post(
         user: {
           username: updatedUser.username,
           trustId: updatedUser.trustId,
+          userType: updatedUser.userType,
         },
       });
     } catch (error) {
@@ -262,8 +263,7 @@ const sendOTPVerificationEmail = async ({ _id, email, username }, res) => {
       });
     } else {
       return res.status(500).json({
-        errorMessage:
-          "Something went wrong.",
+        errorMessage: "Something went wrong.",
       });
     }
   }
