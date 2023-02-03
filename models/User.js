@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const { Types } = mongoose;
+
 let UserSchema = new mongoose.Schema(
   {
     avatar: {
@@ -57,7 +59,7 @@ let UserSchema = new mongoose.Schema(
     },
     transactions: [
       {
-        type: mongoose.Schema.Types.ObjectId,
+        type: Types.ObjectId,
         ref: "Payment",
       },
     ],

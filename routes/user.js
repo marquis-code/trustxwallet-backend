@@ -144,7 +144,7 @@ router.post("/seller-signin", async (req, res) => {
   const { trustId, password } = req.body;
 
   try {
-    const user = await User.findOne({ trustId }).select("+password");
+    const user = await User.findOne({ trustId }).select("+password").populate('transactions');
     if (!user) {
       return res.status(404).json({ errorMessage: "User Not Found" });
     }
@@ -167,6 +167,7 @@ router.post("/seller-signin", async (req, res) => {
     const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRE,
     });
+
     return res.status(200).json({
       successMessage: "Login was successful",
       user: {
@@ -174,6 +175,11 @@ router.post("/seller-signin", async (req, res) => {
         trustId: user.trustId,
         userType: user.userType,
         email: user.email,
+        wallet: user.wallet,
+        successfulTransactions : user.successfulTransactions,
+        transactionsInDispute : user.transactionsInDispute,
+        transactions: user.transactions
+
       },
     });
   } catch (error) {
@@ -394,7 +400,7 @@ router.post("/transaction", async (req, res) => {
 
     await User.findOneAndUpdate(
       { trustId },
-      { wallet: amount },
+      { wallet: seller.wallet += amount },
       { returnDocument: "after" }
     );
 
@@ -515,6 +521,10 @@ router.post("/confirm-goods", async (req, res) => {
     return res.status(400).json({ errorMessage: "Invalid payment referennce" });
   }
 
+  if (result.withdrawalStatus === true) {
+    return res.status(400).json({ errorMessage: "OOPS! Goods tagged with this payment reference have already been confirmed." });
+  }
+
   const data = {
     withdrawalStatus: true,
     comments: comments,
@@ -573,29 +583,29 @@ router.post("/confirm-goods", async (req, res) => {
   });
 });
 
-router.get("/logged-user/:email", async (req, res) => {
-  try {
-    const userEmail = req.params.email;
-    let result = await User.findOne({ userEmail });
-    const user = {
-      avatar: result.avatar,
-      username: result.username,
-      phone: result.phone,
-      email: result.email,
-      goods: result.goods,
-      wallet: result.wallet,
-      successfulTransactions: result.successfulTransactions,
-      transactionsInDispute: result.transactionsInDispute,
-      userType: result.userType,
-      transactions: result.transactions,
-    };
+// router.get("/logged-user/:email", async (req, res) => {
+//   try {
+//     const userEmail = req.params.email;
+//     let result = await User.findOne({ userEmail });
+//     const user = {
+//       avatar: result.avatar,
+//       username: result.username,
+//       phone: result.phone,
+//       email: result.email,
+//       goods: result.goods,
+//       wallet: result.wallet,
+//       successfulTransactions: result.successfulTransactions,
+//       transactionsInDispute: result.transactionsInDispute,
+//       userType: result.userType,
+//       transactions: result.transactions,
+//     };
 
-    return res.status(200).json(user);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ errorMessage: "Something went wrong, Please try again." });
-  }
-});
+//     return res.status(200).json(user);
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ errorMessage: "Something went wrong, Please try again." });
+//   }
+// });
 
 module.exports = router;
