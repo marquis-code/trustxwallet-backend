@@ -59,8 +59,13 @@ let UserSchema = new mongoose.Schema(
     },
     transactions: [
       {
-        type: Types.ObjectId,
-        ref: "Payment",
+        trustId: String,
+        address: String,
+        deliveryDuration: String,
+        amount: String,
+        commodities: String,
+        reference: String,
+        status: String
       },
     ],
   },
