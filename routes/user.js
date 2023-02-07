@@ -60,7 +60,16 @@ router.post("/identityVerification", async (req, res) => {
 
     let result = await newUser.save();
 
-    await sendOTPVerificationEmail(result, res);
+    return res.status(200).json({
+      successMessage: "Identity verification was successful",
+      data: {
+        userId: result._id,
+        email: result.email,
+        username: result.username,
+      },
+    });
+
+    // await sendOTPVerificationEmail(result, res);
   } catch (error) {
     return res.json({
       errorMessage: "Something went wrong, please try again.",
@@ -108,21 +117,21 @@ router.post(
 
       const trustLink = `${process.env.CLIENT_URL}seller/${data.trustId}`;
 
-      const mailOptions = {
-        from: process.env.AUTH_EMAIL,
-        to: email,
-        subject: "Welcome to Trust X Wallet",
-        html: `
-               <h3>Congratulations!</h3>
-               <p>Your Trust X Wallet account has been successfully created.</p>
-               <p>Your trust Id is <b>${data.trustId}</b></p>
-               <p>Your trust x payment link is <b>${trustLink}</b></p>
-               <p>Kind regards,</p>
-               <p>Trust X Team.</p>
-          `,
-      };
+      // const mailOptions = {
+      //   from: process.env.AUTH_EMAIL,
+      //   to: email,
+      //   subject: "Welcome to Trust X Wallet",
+      //   html: `
+      //          <h3>Congratulations!</h3>
+      //          <p>Your Trust X Wallet account has been successfully created.</p>
+      //          <p>Your trust Id is <b>${data.trustId}</b></p>
+      //          <p>Your trust x payment link is <b>${trustLink}</b></p>
+      //          <p>Kind regards,</p>
+      //          <p>Trust X Team.</p>
+      //     `,
+      // };
 
-      await transporter.sendMail(mailOptions);
+      // await transporter.sendMail(mailOptions);
       return res.status(200).json({
         successMessage: "Seller was successfully created",
 
@@ -233,142 +242,142 @@ router.post("/buyer-signin", async (req, res) => {
   }
 });
 
-const sendOTPVerificationEmail = async ({ _id, email, username }, res) => {
-  try {
-    const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
-    const mailOptions = {
-      from: process.env.AUTH_EMAIL,
-      to: email,
-      subject: "Verify Your Email (One Time Password)",
-      html: `
-           <p>A One Time Password has been sent to ${email}</p>
-           <p>Please enter the OTP ${otp} to verify your Email Address. If you cannot see the email from 'sandbox.mgsend.net' in your inbox.</p>
-           <p>make sure to check your SPAM folder</p>
-            <p>This code <b>expires in 10 minutes</b>.</p>
-      `,
-    };
+// const sendOTPVerificationEmail = async ({ _id, email, username }, res) => {
+//   try {
+//     const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
+//     const mailOptions = {
+//       from: process.env.AUTH_EMAIL,
+//       to: email,
+//       subject: "Verify Your Email (One Time Password)",
+//       html: `
+//            <p>A One Time Password has been sent to ${email}</p>
+//            <p>Please enter the OTP ${otp} to verify your Email Address. If you cannot see the email from 'sandbox.mgsend.net' in your inbox.</p>
+//            <p>make sure to check your SPAM folder</p>
+//             <p>This code <b>expires in 10 minutes</b>.</p>
+//       `,
+//     };
 
-    const saltRounds = 10;
-    const hashedOtp = await bcrypt.hash(otp, saltRounds);
-    const newOTPVerification = await new OTPVerification({
-      userId: _id,
-      otp: hashedOtp,
-      expiresAt: Date.now() + 600000,
-      createdAt: Date.now(),
-    });
-    await newOTPVerification.save();
-    await transporter.sendMail(mailOptions);
-    return res.status(200).json({
-      successMessage: "Verification otp email sent.",
-      data: { userId: _id, email, username },
-    });
-  } catch (error) {
-    if (error.status === 403) {
-      return res.status(403).json({
-        errorMessage:
-          "OOPS! This Recieprnt is not authorized on the email serveice. Please Upgrade your email plan",
-      });
-    } else {
-      return res.status(500).json({
-        errorMessage: "Something went wrong.",
-      });
-    }
-  }
-};
+//     const saltRounds = 10;
+//     const hashedOtp = await bcrypt.hash(otp, saltRounds);
+//     const newOTPVerification = await new OTPVerification({
+//       userId: _id,
+//       otp: hashedOtp,
+//       expiresAt: Date.now() + 600000,
+//       createdAt: Date.now(),
+//     });
+//     await newOTPVerification.save();
+//     await transporter.sendMail(mailOptions);
+//     return res.status(200).json({
+//       successMessage: "Verification otp email sent.",
+//       data: { userId: _id, email, username },
+//     });
+//   } catch (error) {
+//     if (error.status === 403) {
+//       return res.status(403).json({
+//         errorMessage:
+//           "OOPS! This Recieprnt is not authorized on the email serveice. Please Upgrade your email plan",
+//       });
+//     } else {
+//       return res.status(500).json({
+//         errorMessage: "Something went wrong.",
+//       });
+//     }
+//   }
+// };
 
-router.post("/verifyOtp", async (req, res) => {
-  try {
-    const { userId, otp } = req.body;
+// router.post("/verifyOtp", async (req, res) => {
+//   try {
+//     const { userId, otp } = req.body;
 
-    const user = await User.findOne({ _id: userId });
+//     const user = await User.findOne({ _id: userId });
 
-    if (!userId || !otp) {
-      return res.status(400).json({
-        errorMessage: "Empty OTP details are not allowed.",
-      });
-    } else {
-      const userOTPVerificationRecords = await OTPVerification.find({
-        userId,
-      });
+//     if (!userId || !otp) {
+//       return res.status(400).json({
+//         errorMessage: "Empty OTP details are not allowed.",
+//       });
+//     } else {
+//       const userOTPVerificationRecords = await OTPVerification.find({
+//         userId,
+//       });
 
-      if (userOTPVerificationRecords.length <= 0) {
-        return res.status(400).json({
-          errorMessage:
-            "Account record doesn't exist or has been verified already. Please signup or log in",
-        });
-      } else {
-        const { expiresAt } = userOTPVerificationRecords[0];
-        const hashedOtp = userOTPVerificationRecords[0].otp;
+//       if (userOTPVerificationRecords.length <= 0) {
+//         return res.status(400).json({
+//           errorMessage:
+//             "Account record doesn't exist or has been verified already. Please signup or log in",
+//         });
+//       } else {
+//         const { expiresAt } = userOTPVerificationRecords[0];
+//         const hashedOtp = userOTPVerificationRecords[0].otp;
 
-        if (expiresAt < Date.now()) {
-          await OTPVerification.deleteMany({ userId });
-          return res.status(400).json({
-            errorMessage: "Code has expired. Please request again.",
-          });
-        } else {
-          const validOtp = await bcrypt.compare(otp, hashedOtp);
+//         if (expiresAt < Date.now()) {
+//           await OTPVerification.deleteMany({ userId });
+//           return res.status(400).json({
+//             errorMessage: "Code has expired. Please request again.",
+//           });
+//         } else {
+//           const validOtp = await bcrypt.compare(otp, hashedOtp);
 
-          if (!validOtp) {
-            return res.status(400).json({
-              errorMessage: "Invalid code passed. Check your inbox.",
-            });
-          } else {
-            await User.updateOne({ _id: userId }, { verified: true });
-            await OTPVerification.deleteMany({ userId });
+//           if (!validOtp) {
+//             return res.status(400).json({
+//               errorMessage: "Invalid code passed. Check your inbox.",
+//             });
+//           } else {
+//             await User.updateOne({ _id: userId }, { verified: true });
+//             await OTPVerification.deleteMany({ userId });
 
-            if (user.userType === "buyer") {
-              return res.status(200).json({
-                successMessage: "Email has been verified.",
-                user: {
-                  userType: user.userType,
-                  userId: user._id,
-                  username: user.username,
-                  email: user.email,
-                },
-              });
-            } else {
-              return res.status(200).json({
-                successMessage: "Email has been verified.",
-                user: {
-                  userType: user.userType,
-                  userId: user._id,
-                  username: user.username,
-                  email: user.email,
-                  wallet: user.wallet,
-                  successfulTransactions: user.successfulTransactions,
-                  transactionsInDispute: user.transactionsInDispute,
-                  trustId: user.trustId,
-                },
-              });
-            }
-          }
-        }
-      }
-    }
-  } catch (error) {
-    return res.status(500).json({
-      errorMessage: error.message,
-    });
-  }
-});
+//             if (user.userType === "buyer") {
+//               return res.status(200).json({
+//                 successMessage: "Email has been verified.",
+//                 user: {
+//                   userType: user.userType,
+//                   userId: user._id,
+//                   username: user.username,
+//                   email: user.email,
+//                 },
+//               });
+//             } else {
+//               return res.status(200).json({
+//                 successMessage: "Email has been verified.",
+//                 user: {
+//                   userType: user.userType,
+//                   userId: user._id,
+//                   username: user.username,
+//                   email: user.email,
+//                   wallet: user.wallet,
+//                   successfulTransactions: user.successfulTransactions,
+//                   transactionsInDispute: user.transactionsInDispute,
+//                   trustId: user.trustId,
+//                 },
+//               });
+//             }
+//           }
+//         }
+//       }
+//     }
+//   } catch (error) {
+//     return res.status(500).json({
+//       errorMessage: error.message,
+//     });
+//   }
+// });
 
-router.post("/resendOTPVerificationCode", async (req, res) => {
-  try {
-    const { userId, email } = req.body;
-    if (!userId || !email) {
-      return res.status(400).json({
-        errorMessage: "Empty user details are not allowed.",
-      });
-    } else {
-      await OTPVerification.deleteMany({ userId });
-      sendOTPVerificationEmail({ _id: userId, email }, res);
-    }
-  } catch (error) {
-    return res.status(500).json({
-      errorMessage: error.message,
-    });
-  }
-});
+// router.post("/resendOTPVerificationCode", async (req, res) => {
+//   try {
+//     const { userId, email } = req.body;
+//     if (!userId || !email) {
+//       return res.status(400).json({
+//         errorMessage: "Empty user details are not allowed.",
+//       });
+//     } else {
+//       await OTPVerification.deleteMany({ userId });
+//       sendOTPVerificationEmail({ _id: userId, email }, res);
+//     }
+//   } catch (error) {
+//     return res.status(500).json({
+//       errorMessage: error.message,
+//     });
+//   }
+// });
 
 router.post("/transaction", async (req, res) => {
   try {
@@ -434,43 +443,43 @@ router.post("/transaction", async (req, res) => {
 
     const response = await newPayment.save();
 
-    await handleCronJobs(buyer.email, buyer.username, deliveryDuration, res);
+    // await handleCronJobs(buyer.email, buyer.username, deliveryDuration, res);
 
-    const sellerMailOptions = {
-      from: process.env.AUTH_EMAIL,
-      to: seller.email,
-      subject: "Confirmed Payment",
-      html: `
-                 <h3>Hello, ${seller.username}</h3>
-                 <p>A sum of NGN${amount} has been paid to your account for the following commodities ${commodities}</p>
-                 <p>Commodities should be delivered to ${address}, between a duration of ${deliveryDuration}</b></p>
-                 <p>Kind regards,</p>
-                 <p>Trust X Team.</p>
-            `,
-    };
+    // const sellerMailOptions = {
+    //   from: process.env.AUTH_EMAIL,
+    //   to: seller.email,
+    //   subject: "Confirmed Payment",
+    //   html: `
+    //              <h3>Hello, ${seller.username}</h3>
+    //              <p>A sum of NGN${amount} has been paid to your account for the following commodities ${commodities}</p>
+    //              <p>Commodities should be delivered to ${address}, between a duration of ${deliveryDuration}</b></p>
+    //              <p>Kind regards,</p>
+    //              <p>Trust X Team.</p>
+    //         `,
+    // };
 
-    const buyerMailOptions = {
-      from: process.env.AUTH_EMAIL,
-      to: email,
-      subject: "Confirmed Payment",
-      html: `
-                 <h3>Hello, ${buyer.username}</h3>
-                 <p>Your payment has been confirmed and your goods is on it's way</p>
-                 <p>Below is a summary of payment and delivery details"</p>
-                 <p>Address : ${address}</p>
-                 <p>Amount : ${amount}</p>
-                 <p>Commodities Ordered : ${commodities}</p>
-                 <p>Payment reference: ${reference}</p>
-                 <p>Date Item would be delivered : ${deliveryDuration}th of this month.</p>
-                 <small>Please Noted: Payment reference would be used to confirm the goods recieved.</small>
-                 <p>Kind regards,</p>
-                 <p>Trust X Team.</p>
-            `,
-    };
+    // const buyerMailOptions = {
+    //   from: process.env.AUTH_EMAIL,
+    //   to: email,
+    //   subject: "Confirmed Payment",
+    //   html: `
+    //              <h3>Hello, ${buyer.username}</h3>
+    //              <p>Your payment has been confirmed and your goods is on it's way</p>
+    //              <p>Below is a summary of payment and delivery details"</p>
+    //              <p>Address : ${address}</p>
+    //              <p>Amount : ${amount}</p>
+    //              <p>Commodities Ordered : ${commodities}</p>
+    //              <p>Payment reference: ${reference}</p>
+    //              <p>Date Item would be delivered : ${deliveryDuration}th of this month.</p>
+    //              <small>Please Noted: Payment reference would be used to confirm the goods recieved.</small>
+    //              <p>Kind regards,</p>
+    //              <p>Trust X Team.</p>
+    //         `,
+    // };
 
-    await transporter.sendMail(buyerMailOptions);
+    // await transporter.sendMail(buyerMailOptions);
 
-    await transporter.sendMail(sellerMailOptions);
+    // await transporter.sendMail(sellerMailOptions);
     return res.status(200).json({
       successMessage: "Seller has been successfully notified",
       paymentInfo: {
@@ -478,6 +487,7 @@ router.post("/transaction", async (req, res) => {
       },
     });
   } catch (error) {
+    console.log(error);
     if (error.status === 403) {
       return res.status(403).json({
         errorMessage:
@@ -502,36 +512,36 @@ router.post("/transaction", async (req, res) => {
 //   }
 // };
 
-const handleCronJobs = async (email, username, deliveryDuration, res) => {
-  try {
-    nodeCron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
-      sendCronReminderEmails(email, username, res);
-    });
-  } catch (error) {
-    console.log(error);
-  }
-};
+// const handleCronJobs = async (email, username, deliveryDuration, res) => {
+//   try {
+//     nodeCron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
+//       sendCronReminderEmails(email, username, res);
+//     });
+//   } catch (error) {
+//     console.log(error);
+//   }
+// };
 
-const sendCronReminderEmails = async (email, username, res) => {
-  try {
-    const buyerMailReminderOptions = {
-      from: process.env.AUTH_EMAIL,
-      to: email,
-      subject: "Good's arrival reminder",
-      html: `
-               <h3>Hello ${username}</h3>
-               <p>This is a reminder that your goods is on it's way.</p>
-               <p>Please reach out if you have issues with the package recieved.</p>
-               <p>Kind regards,</p>
-               <p>Trust X Team.</p>
-          `,
-    };
+// const sendCronReminderEmails = async (email, username, res) => {
+//   try {
+//     const buyerMailReminderOptions = {
+//       from: process.env.AUTH_EMAIL,
+//       to: email,
+//       subject: "Good's arrival reminder",
+//       html: `
+//                <h3>Hello ${username}</h3>
+//                <p>This is a reminder that your goods is on it's way.</p>
+//                <p>Please reach out if you have issues with the package recieved.</p>
+//                <p>Kind regards,</p>
+//                <p>Trust X Team.</p>
+//           `,
+//     };
 
-    return await transporter.sendMail(buyerMailReminderOptions);
-  } catch (error) {
-    console.log(error);
-  }
-};
+//     return await transporter.sendMail(buyerMailReminderOptions);
+//   } catch (error) {
+//     console.log(error);
+//   }
+// };
 
 router.post("/confirm-goods", async (req, res) => {
   const { reference, trustId, comments, email } = req.body;
@@ -574,33 +584,33 @@ router.post("/confirm-goods", async (req, res) => {
     }
   );
 
-  const sellerMailOptions = {
-    from: process.env.AUTH_EMAIL,
-    to: seller.email,
-    subject: "Confirmed Goods",
-    html: `
-               <h3>Hello, ${seller.username}</h3>
-               <p>The buyer has successfully recieved the items.</p>
-               <p>Therefore, this trannsaction is complete and you can go ahead to withdraw from you wallet </p>
-               <p>Kind regards,</p>
-               <p>Trust X Team.</p>
-          `,
-  };
+  // const sellerMailOptions = {
+  //   from: process.env.AUTH_EMAIL,
+  //   to: seller.email,
+  //   subject: "Confirmed Goods",
+  //   html: `
+  //              <h3>Hello, ${seller.username}</h3>
+  //              <p>The buyer has successfully recieved the items.</p>
+  //              <p>Therefore, this trannsaction is complete and you can go ahead to withdraw from you wallet </p>
+  //              <p>Kind regards,</p>
+  //              <p>Trust X Team.</p>
+  //         `,
+  // };
 
-  const buyerMailOptions = {
-    from: process.env.AUTH_EMAIL,
-    to: buyer.email,
-    subject: "Confirmed Goods",
-    html: `
-               <h3>Hello, ${buyer.username}</h3>
-               <p>Thanks for confirming your goods.</p>
-               <p>Kind regards,</p>
-               <p>Trust X Team.</p>
-          `,
-  };
+  // const buyerMailOptions = {
+  //   from: process.env.AUTH_EMAIL,
+  //   to: buyer.email,
+  //   subject: "Confirmed Goods",
+  //   html: `
+  //              <h3>Hello, ${buyer.username}</h3>
+  //              <p>Thanks for confirming your goods.</p>
+  //              <p>Kind regards,</p>
+  //              <p>Trust X Team.</p>
+  //         `,
+  // };
 
-  await transporter.sendMail(sellerMailOptions);
-  await transporter.sendMail(buyerMailOptions);
+  // await transporter.sendMail(sellerMailOptions);
+  // await transporter.sendMail(buyerMailOptions);
   return res.status(200).json({
     successMessage: "Thanks for confirming your goods.",
     paymentInfo: {
@@ -633,6 +643,5 @@ router.get("/logged-user/:id", async (req, res) => {
       .json({ errorMessage: "Something went wrong, Please try again." });
   }
 });
-
 
 module.exports = router;
