@@ -88,7 +88,8 @@ router.post(
           .status(400)
           .json({ errorMessage: "Please upload  profile image" });
       }
-      let user = await User.findOne({ email: email, verified: true });
+      // let user = await User.findOne({ email: email, verified: true });
+      let user = await User.findOne({ email: email });
       if (!user) {
         return res.status(400).json({ errorMessage: "User not found" });
       }
@@ -160,11 +161,11 @@ router.post("/seller-signin", async (req, res) => {
       return res.status(404).json({ errorMessage: "User Not Found" });
     }
 
-    if (!user.verified) {
-      return res.status(404).json({
-        errorMessage: "Email has not been verified yet. Check your inbox.",
-      });
-    }
+    // if (!user.verified) {
+    //   return res.status(404).json({
+    //     errorMessage: "Email has not been verified yet. Check your inbox.",
+    //   });
+    // }
     const isMatchPassword = bcrypt.compare(password, user.password);
 
     if (!isMatchPassword) {
@@ -208,11 +209,11 @@ router.post("/buyer-signin", async (req, res) => {
       return res.status(404).json({ errorMessage: "User Not Found" });
     }
 
-    if (!user.verified) {
-      return res.status(404).json({
-        errorMessage: "Email has not been verified yet. Check your inbox.",
-      });
-    }
+    // if (!user.verified) {
+    //   return res.status(404).json({
+    //     errorMessage: "Email has not been verified yet. Check your inbox.",
+    //   });
+    // }
     const isMatchPassword = bcrypt.compare(password, user.password);
 
     if (!isMatchPassword) {
