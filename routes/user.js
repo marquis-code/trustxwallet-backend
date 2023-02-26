@@ -426,7 +426,7 @@ router.post("/transaction", async (req, res) => {
 
     if (!buyer) {
       return res.status(400).json({
-        errorMessage: `Buyer does not exist`,
+        errorMessage: `Buyer with email ${email} does not exist`,
       });
     }
 
@@ -444,43 +444,43 @@ router.post("/transaction", async (req, res) => {
 
     const response = await newPayment.save();
 
-    // await handleCronJobs(buyer.email, buyer.username, deliveryDuration, res);
+    await handleCronJobs(buyer.email, buyer.username, deliveryDuration, res);
 
-    // const sellerMailOptions = {
-    //   from: process.env.AUTH_EMAIL,
-    //   to: seller.email,
-    //   subject: "Confirmed Payment",
-    //   html: `
-    //              <h3>Hello, ${seller.username}</h3>
-    //              <p>A sum of NGN${amount} has been paid to your account for the following commodities ${commodities}</p>
-    //              <p>Commodities should be delivered to ${address}, between a duration of ${deliveryDuration}</b></p>
-    //              <p>Kind regards,</p>
-    //              <p>Trust X Team.</p>
-    //         `,
-    // };
+    const sellerMailOptions = {
+      from: process.env.AUTH_EMAIL,
+      to: seller.email,
+      subject: "Confirmed Payment",
+      html: `
+                 <h3>Hello, ${seller.username}</h3>
+                 <p>A sum of NGN${amount} has been paid to your account for the following commodities ${commodities}</p>
+                 <p>Commodities should be delivered to ${address}, between a duration of ${deliveryDuration}</b></p>
+                 <p>Kind regards,</p>
+                 <p>Trust X Team.</p>
+            `,
+    };
 
-    // const buyerMailOptions = {
-    //   from: process.env.AUTH_EMAIL,
-    //   to: email,
-    //   subject: "Confirmed Payment",
-    //   html: `
-    //              <h3>Hello, ${buyer.username}</h3>
-    //              <p>Your payment has been confirmed and your goods is on it's way</p>
-    //              <p>Below is a summary of payment and delivery details"</p>
-    //              <p>Address : ${address}</p>
-    //              <p>Amount : ${amount}</p>
-    //              <p>Commodities Ordered : ${commodities}</p>
-    //              <p>Payment reference: ${reference}</p>
-    //              <p>Date Item would be delivered : ${deliveryDuration}th of this month.</p>
-    //              <small>Please Noted: Payment reference would be used to confirm the goods recieved.</small>
-    //              <p>Kind regards,</p>
-    //              <p>Trust X Team.</p>
-    //         `,
-    // };
+    const buyerMailOptions = {
+      from: process.env.AUTH_EMAIL,
+      to: email,
+      subject: "Confirmed Payment",
+      html: `
+                 <h3>Hello, ${buyer.username}</h3>
+                 <p>Your payment has been confirmed and your goods is on it's way</p>
+                 <p>Below is a summary of payment and delivery details"</p>
+                 <p>Address : ${address}</p>
+                 <p>Amount : ${amount}</p>
+                 <p>Commodities Ordered : ${commodities}</p>
+                 <p>Payment reference: ${reference}</p>
+                 <p>Date Item would be delivered : ${deliveryDuration}th of this month.</p>
+                 <small>Please Noted: Payment reference would be used to confirm the goods recieved.</small>
+                 <p>Kind regards,</p>
+                 <p>Trust X Team.</p>
+            `,
+    };
 
-    // await transporter.sendMail(buyerMailOptions);
+    await transporter.sendMail(buyerMailOptions);
 
-    // await transporter.sendMail(sellerMailOptions);
+    await transporter.sendMail(sellerMailOptions);
     return res.status(200).json({
       successMessage: "Seller has been successfully notified",
       paymentInfo: {
@@ -513,36 +513,36 @@ router.post("/transaction", async (req, res) => {
 //   }
 // };
 
-// const handleCronJobs = async (email, username, deliveryDuration, res) => {
-//   try {
-//     nodeCron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
-//       sendCronReminderEmails(email, username, res);
-//     });
-//   } catch (error) {
-//     console.log(error);
-//   }
-// };
+const handleCronJobs = async (email, username, deliveryDuration, res) => {
+  try {
+    nodeCron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
+      sendCronReminderEmails(email, username, res);
+    });
+  } catch (error) {
+    console.log(error);
+  }
+};
 
-// const sendCronReminderEmails = async (email, username, res) => {
-//   try {
-//     const buyerMailReminderOptions = {
-//       from: process.env.AUTH_EMAIL,
-//       to: email,
-//       subject: "Good's arrival reminder",
-//       html: `
-//                <h3>Hello ${username}</h3>
-//                <p>This is a reminder that your goods is on it's way.</p>
-//                <p>Please reach out if you have issues with the package recieved.</p>
-//                <p>Kind regards,</p>
-//                <p>Trust X Team.</p>
-//           `,
-//     };
+const sendCronReminderEmails = async (email, username, res) => {
+  try {
+    const buyerMailReminderOptions = {
+      from: process.env.AUTH_EMAIL,
+      to: email,
+      subject: "Good's arrival reminder",
+      html: `
+               <h3>Hello ${username}</h3>
+               <p>This is a reminder that your goods is on it's way.</p>
+               <p>Please reach out if you have issues with the package recieved.</p>
+               <p>Kind regards,</p>
+               <p>Trust X Team.</p>
+          `,
+    };
 
-//     return await transporter.sendMail(buyerMailReminderOptions);
-//   } catch (error) {
-//     console.log(error);
-//   }
-// };
+    return await transporter.sendMail(buyerMailReminderOptions);
+  } catch (error) {
+    console.log(error);
+  }
+};
 
 router.post("/confirm-goods", async (req, res) => {
   const { reference, trustId, comments, email } = req.body;
@@ -585,33 +585,33 @@ router.post("/confirm-goods", async (req, res) => {
     }
   );
 
-  // const sellerMailOptions = {
-  //   from: process.env.AUTH_EMAIL,
-  //   to: seller.email,
-  //   subject: "Confirmed Goods",
-  //   html: `
-  //              <h3>Hello, ${seller.username}</h3>
-  //              <p>The buyer has successfully recieved the items.</p>
-  //              <p>Therefore, this trannsaction is complete and you can go ahead to withdraw from you wallet </p>
-  //              <p>Kind regards,</p>
-  //              <p>Trust X Team.</p>
-  //         `,
-  // };
+  const sellerMailOptions = {
+    from: process.env.AUTH_EMAIL,
+    to: seller.email,
+    subject: "Confirmed Goods",
+    html: `
+               <h3>Hello, ${seller.username}</h3>
+               <p>The buyer has successfully recieved the items.</p>
+               <p>Therefore, this trannsaction is complete and you can go ahead to withdraw from you wallet </p>
+               <p>Kind regards,</p>
+               <p>Trust X Team.</p>
+          `,
+  };
 
-  // const buyerMailOptions = {
-  //   from: process.env.AUTH_EMAIL,
-  //   to: buyer.email,
-  //   subject: "Confirmed Goods",
-  //   html: `
-  //              <h3>Hello, ${buyer.username}</h3>
-  //              <p>Thanks for confirming your goods.</p>
-  //              <p>Kind regards,</p>
-  //              <p>Trust X Team.</p>
-  //         `,
-  // };
+  const buyerMailOptions = {
+    from: process.env.AUTH_EMAIL,
+    to: buyer.email,
+    subject: "Confirmed Goods",
+    html: `
+               <h3>Hello, ${buyer.username}</h3>
+               <p>Thanks for confirming your goods.</p>
+               <p>Kind regards,</p>
+               <p>Trust X Team.</p>
+          `,
+  };
 
-  // await transporter.sendMail(sellerMailOptions);
-  // await transporter.sendMail(buyerMailOptions);
+  await transporter.sendMail(sellerMailOptions);
+  await transporter.sendMail(buyerMailOptions);
   return res.status(200).json({
     successMessage: "Thanks for confirming your goods.",
     paymentInfo: {

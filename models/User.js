@@ -63,9 +63,9 @@ let UserSchema = new mongoose.Schema(
         address: String,
         deliveryDuration: String,
         amount: String,
-        commodities: String,
+        commodities: [String],
         reference: String,
-        status: String
+        status: String,
       },
     ],
   },

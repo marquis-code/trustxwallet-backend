@@ -23,7 +23,6 @@ const PaymentSchema = new mongoose.Schema(
     },
     commodities : {
       type : [String],
-      required: true,
     },
     status: {
       type: String,
