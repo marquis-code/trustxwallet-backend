@@ -452,8 +452,10 @@ router.post("/transaction", async (req, res) => {
       subject: "Confirmed Payment",
       html: `
                  <h3>Hello, ${seller.username}</h3>
-                 <p>A sum of NGN${amount} has been paid to your account for the following commodities ${commodities}</p>
-                 <p>Commodities should be delivered to ${address}, between a duration of ${deliveryDuration}</b></p>
+                 <p>A sum of NGN${amount} has been paid to your account for the following commodities : </p>
+                 <p> ${commodities}</p>
+                 <p>Commodities above should be delivered to ${address}.
+                 <p>Delivery duration is ${deliveryDuration} working days.</p>
                  <p>Kind regards,</p>
                  <p>Trust X Team.</p>
             `,
