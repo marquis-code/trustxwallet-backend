@@ -1,496 +1,93 @@
 const express = require("express");
 let router = express.Router();
 const User = require("../models/User");
-const Payment = require("../models/Payment");
-const OTPVerification = require("../models/OTPVerification");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
-const _ = require("lodash");
-const nodemailer = require("nodemailer");
-const nodemailerMailgunTransport = require("nodemailer-mailgun-transport");
-const { v4: uuidv4 } = require("uuid");
 require("dotenv").config();
-const randomstring = require("randomstring");
 const cloudinary = require("../utils/cloudinary");
 const upload = require("../utils/multer");
-const nodeCron = require("node-cron");
-const axios = require("axios");
+const OTPVerification = require("../models/OTPVerification");
+const Payment = require('../models/Payment');
+const PurchaseEscrowOrder = require("../models/PurchaseEscrowOrder");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const axios = require('axios');
+const _ = require('lodash');
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
 
-const auth = {
-  auth: {
-    api_key: process.env.MAILGUN_APIKEY,
-    domain: process.env.MAILGUN_DOMAIN,
-  },
-};
 
-const transporter = nodemailer.createTransport(
-  nodemailerMailgunTransport(auth)
-);
-
-transporter.verify((error, success) => {
-  if (error) {
-    console.log(error);
-  } else {
-    console.log("ready for message transport");
-    console.log(success);
-  }
-});
-
-router.post("/identityVerification", async (req, res) => {
-  const { email, username, phone, password, termsAgreement, userType } =
-    req.body;
+router.post("/signup", upload.single("profile"), async (req, res) => {
   try {
-    const user = await User.findOne({ email });
+    const { email, phone, password, userType } = req.body;
+
+    const user = await User.findOne({ phone });
+
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ errorMessage: "Please upload  profile image" });
+    }
+
     if (user) {
       return res.status(400).json({ errorMessage: "User Already Exist" });
     }
+
+    const upload_response = await cloudinary.uploader.upload(req.file.path);
+
 
     const salt = await bcrypt.genSalt(10);
     let hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new User({
       email,
-      username,
       phone,
       password: hashedPassword,
-      termsAgreement: termsAgreement,
       verified: false,
       userType,
+      avatar: upload_response.url,
+      cloudinary_id: upload_response.public_id,
     });
 
     let result = await newUser.save();
 
-    return res.status(200).json({
-      successMessage: "Identity verification was successful",
-      data: {
-        userId: result._id,
-        email: result.email,
-        username: result.username,
-      },
-    });
-
-    // await sendOTPVerificationEmail(result, res);
+    await sendOTPVerification(result, res)
   } catch (error) {
-    return res.json({
-      errorMessage: "Something went wrong, please try again.",
-    });
+    res.status(500).json({ message: 'Failed to user', })
   }
 });
 
-router.post(
-  "/productVerification",
-  upload.single("image"),
-  async (req, res) => {
-    const { alternative_email, alternative_phone, goods, email } = req.body;
-    try {
-      if (!req.file) {
-        return res
-          .status(400)
-          .json({ errorMessage: "Please upload  profile image" });
-      }
-      // let user = await User.findOne({ email: email, verified: true });
-      let user = await User.findOne({ email: email });
-      if (!user) {
-        return res.status(400).json({ errorMessage: "User not found" });
-      }
 
-      const upload_response = await cloudinary.uploader.upload(req.file.path);
-      const generated_trust_id = randomstring.generate({
-        length: 12,
-        charset: "alphanumeric",
-        capitalization: "uppercase",
-      });
-      const data = {
-        alternative_email,
-        alternative_phone,
-        goods,
-        avatar: upload_response.url,
-        cloudinary_id: upload_response.public_id,
-        trustId: generated_trust_id,
-      };
-      const updatedUser = await User.findOneAndUpdate(
-        { email: req.body.email },
-        data,
-        {
-          returnDocument: "after",
-        }
-      );
-
-      const trustLink = `${process.env.CLIENT_URL}seller/${data.trustId}`;
-
-      // const mailOptions = {
-      //   from: process.env.AUTH_EMAIL,
-      //   to: email,
-      //   subject: "Welcome to Trust X Wallet",
-      //   html: `
-      //          <h3>Congratulations!</h3>
-      //          <p>Your Trust X Wallet account has been successfully created.</p>
-      //          <p>Your trust Id is <b>${data.trustId}</b></p>
-      //          <p>Your trust x payment link is <b>${trustLink}</b></p>
-      //          <p>Kind regards,</p>
-      //          <p>Trust X Team.</p>
-      //     `,
-      // };
-
-      // await transporter.sendMail(mailOptions);
-      return res.status(200).json({
-        successMessage: "Seller was successfully created",
-
-        user: {
-          username: updatedUser.username,
-          trustId: updatedUser.trustId,
-          userType: updatedUser.userType,
-        },
-      });
-    } catch (error) {
-      return res.status(500).json({
-        errorMessage: "Something went wrong. Plaese try again!",
-      });
-    }
-  }
-);
-
-router.post("/seller-signin", async (req, res) => {
-  const { trustId, password } = req.body;
-
+const sendOTPVerification = async ({ _id, email, phone }, res) => {
   try {
-    const user = await User.findOne({ trustId })
-      .select("+password")
-      .populate("transactions");
-    if (!user) {
-      return res.status(404).json({ errorMessage: "User Not Found" });
-    }
+    const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
+    let message = `
+    Hello From TrustXWallet
+    Please enter the OTP ${otp} to verify your account.
+    This OTP is valid for 10 minutes.
+    `
 
-    // if (!user.verified) {
-    //   return res.status(404).json({
-    //     errorMessage: "Email has not been verified yet. Check your inbox.",
-    //   });
-    // }
-    const isMatchPassword = bcrypt.compare(password, user.password);
-
-    if (!isMatchPassword) {
-      return res
-        .status(400)
-        .json({ errorMessage: "Invalid Login Credentials" });
-    }
-
-    const jwtPayload = { _id: user._id };
-
-    const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRE,
+    const saltRounds = 10;
+    const hashedOtp = await bcrypt.hash(otp, saltRounds);
+    const newOTPVerification = await OTPVerification({
+      userId: _id,
+      otp: hashedOtp,
+      expiresAt: Date.now() + 600000,
+      createdAt: Date.now(),
     });
-
+    await newOTPVerification.save();
+    const client = require('twilio')(accountSid, authToken);
+    client.messages
+      .create({
+        body: message,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: `+234${phone.slice(1)}`
+      }).catch((error) => {
+        console.log(error);
+      })
     return res.status(200).json({
-      successMessage: "Login was successful",
-      user: {
-        username: user.username,
-        trustId: user.trustId,
-        userType: user.userType,
-        email: user.email,
-        wallet: user.wallet,
-        successfulTransactions: user.successfulTransactions,
-        transactionsInDispute: user.transactionsInDispute,
-        transactions: user.transactions,
-      },
+      successMessage: "Verification OTP sent.",
+      data: { userId: _id, email, phone },
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ errorMessage: "Something went wrong, please try again." });
-  }
-});
-
-router.post("/buyer-signin", async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    const user = await User.findOne({ email }).select("+password");
-    if (!user) {
-      return res.status(404).json({ errorMessage: "User Not Found" });
-    }
-
-    // if (!user.verified) {
-    //   return res.status(404).json({
-    //     errorMessage: "Email has not been verified yet. Check your inbox.",
-    //   });
-    // }
-    const isMatchPassword = bcrypt.compare(password, user.password);
-
-    if (!isMatchPassword) {
-      return res
-        .status(400)
-        .json({ errorMessage: "Invalid Login Credentials" });
-    }
-
-    const jwtPayload = { _id: user._id };
-
-    const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRE,
-    });
-    return res.status(200).json({
-      successMessage: "Login was successful",
-      user: {
-        username: user.username,
-        email: user.email,
-        userType: user.userType,
-        accessToken,
-      },
-    });
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ errorMessage: "Something went wrong, please try again." });
-  }
-});
-
-// const sendOTPVerificationEmail = async ({ _id, email, username }, res) => {
-//   try {
-//     const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
-//     const mailOptions = {
-//       from: process.env.AUTH_EMAIL,
-//       to: email,
-//       subject: "Verify Your Email (One Time Password)",
-//       html: `
-//            <p>A One Time Password has been sent to ${email}</p>
-//            <p>Please enter the OTP ${otp} to verify your Email Address. If you cannot see the email from 'sandbox.mgsend.net' in your inbox.</p>
-//            <p>make sure to check your SPAM folder</p>
-//             <p>This code <b>expires in 10 minutes</b>.</p>
-//       `,
-//     };
-
-//     const saltRounds = 10;
-//     const hashedOtp = await bcrypt.hash(otp, saltRounds);
-//     const newOTPVerification = await new OTPVerification({
-//       userId: _id,
-//       otp: hashedOtp,
-//       expiresAt: Date.now() + 600000,
-//       createdAt: Date.now(),
-//     });
-//     await newOTPVerification.save();
-//     await transporter.sendMail(mailOptions);
-//     return res.status(200).json({
-//       successMessage: "Verification otp email sent.",
-//       data: { userId: _id, email, username },
-//     });
-//   } catch (error) {
-//     if (error.status === 403) {
-//       return res.status(403).json({
-//         errorMessage:
-//           "OOPS! This Recieprnt is not authorized on the email serveice. Please Upgrade your email plan",
-//       });
-//     } else {
-//       return res.status(500).json({
-//         errorMessage: "Something went wrong.",
-//       });
-//     }
-//   }
-// };
-
-// router.post("/verifyOtp", async (req, res) => {
-//   try {
-//     const { userId, otp } = req.body;
-
-//     const user = await User.findOne({ _id: userId });
-
-//     if (!userId || !otp) {
-//       return res.status(400).json({
-//         errorMessage: "Empty OTP details are not allowed.",
-//       });
-//     } else {
-//       const userOTPVerificationRecords = await OTPVerification.find({
-//         userId,
-//       });
-
-//       if (userOTPVerificationRecords.length <= 0) {
-//         return res.status(400).json({
-//           errorMessage:
-//             "Account record doesn't exist or has been verified already. Please signup or log in",
-//         });
-//       } else {
-//         const { expiresAt } = userOTPVerificationRecords[0];
-//         const hashedOtp = userOTPVerificationRecords[0].otp;
-
-//         if (expiresAt < Date.now()) {
-//           await OTPVerification.deleteMany({ userId });
-//           return res.status(400).json({
-//             errorMessage: "Code has expired. Please request again.",
-//           });
-//         } else {
-//           const validOtp = await bcrypt.compare(otp, hashedOtp);
-
-//           if (!validOtp) {
-//             return res.status(400).json({
-//               errorMessage: "Invalid code passed. Check your inbox.",
-//             });
-//           } else {
-//             await User.updateOne({ _id: userId }, { verified: true });
-//             await OTPVerification.deleteMany({ userId });
-
-//             if (user.userType === "buyer") {
-//               return res.status(200).json({
-//                 successMessage: "Email has been verified.",
-//                 user: {
-//                   userType: user.userType,
-//                   userId: user._id,
-//                   username: user.username,
-//                   email: user.email,
-//                 },
-//               });
-//             } else {
-//               return res.status(200).json({
-//                 successMessage: "Email has been verified.",
-//                 user: {
-//                   userType: user.userType,
-//                   userId: user._id,
-//                   username: user.username,
-//                   email: user.email,
-//                   wallet: user.wallet,
-//                   successfulTransactions: user.successfulTransactions,
-//                   transactionsInDispute: user.transactionsInDispute,
-//                   trustId: user.trustId,
-//                 },
-//               });
-//             }
-//           }
-//         }
-//       }
-//     }
-//   } catch (error) {
-//     return res.status(500).json({
-//       errorMessage: error.message,
-//     });
-//   }
-// });
-
-// router.post("/resendOTPVerificationCode", async (req, res) => {
-//   try {
-//     const { userId, email } = req.body;
-//     if (!userId || !email) {
-//       return res.status(400).json({
-//         errorMessage: "Empty user details are not allowed.",
-//       });
-//     } else {
-//       await OTPVerification.deleteMany({ userId });
-//       sendOTPVerificationEmail({ _id: userId, email }, res);
-//     }
-//   } catch (error) {
-//     return res.status(500).json({
-//       errorMessage: error.message,
-//     });
-//   }
-// });
-
-router.post("/transaction", async (req, res) => {
-  try {
-    const {
-      trustId,
-      address,
-      deliveryDuration,
-      amount,
-      commodities,
-      reference,
-      status,
-      email,
-    } = req.body;
-
-    const seller = await User.findOne({ trustId });
-
-    const buyer = await User.findOne({ email });
-
-    if (!seller) {
-      return res.status(400).json({
-        errorMessage: `Seller with trust Id ${trustId} does not exist`,
-      });
-    } else {
-      await User.findOneAndUpdate(
-        { trustId },
-        {
-          wallet: (seller.wallet += amount),
-          $push: {
-            transactions: [
-              {
-                trustId,
-                address,
-                deliveryDuration,
-                amount,
-                commodities,
-                reference,
-                status,
-              },
-            ],
-          },
-        },
-        { returnDocument: "after" }
-      );
-    }
-
-    if (!buyer) {
-      return res.status(400).json({
-        errorMessage: `Buyer with email ${email} does not exist`,
-      });
-    }
-
-    const newPayment = new Payment({
-      trustId,
-      amount,
-      address,
-      deliveryDuration,
-      commodities,
-      reference,
-      status,
-      email,
-      withdrawalStatus: false,
-    });
-
-    const response = await newPayment.save();
-
-    await handleCronJobs(buyer.email, buyer.username, deliveryDuration, res);
-
-    const sellerMailOptions = {
-      from: process.env.AUTH_EMAIL,
-      to: seller.email,
-      subject: "Confirmed Payment",
-      html: `
-                 <h3>Hello, ${seller.username}</h3>
-                 <p>A sum of NGN${amount} has been paid to your account for the following commodities : </p>
-                 <p> ${commodities}</p>
-                 <p>Commodities above should be delivered to ${address}.
-                 <p>Delivery duration is ${deliveryDuration} working days.</p>
-                 <p>Kind regards,</p>
-                 <p>Trust X Team.</p>
-            `,
-    };
-
-    const buyerMailOptions = {
-      from: process.env.AUTH_EMAIL,
-      to: email,
-      subject: "Confirmed Payment",
-      html: `
-                 <h3>Hello, ${buyer.username}</h3>
-                 <p>Your payment has been confirmed and your goods is on it's way</p>
-                 <p>Below is a summary of payment and delivery details"</p>
-                 <p>Address : ${address}</p>
-                 <p>Amount : ${amount}</p>
-                 <p>Commodities Ordered : ${commodities}</p>
-                 <p>Payment reference: ${reference}</p>
-                 <p>Date Item would be delivered : ${deliveryDuration}th of this month.</p>
-                 <small>Please Noted: Payment reference would be used to confirm the goods recieved.</small>
-                 <p>Kind regards,</p>
-                 <p>Trust X Team.</p>
-            `,
-    };
-
-    await transporter.sendMail(buyerMailOptions);
-
-    await transporter.sendMail(sellerMailOptions);
-    return res.status(200).json({
-      successMessage: "Seller has been successfully notified",
-      paymentInfo: {
-        withdrawalStatus: response.withdrawalStatus,
-      },
-    });
-  } catch (error) {
-    console.log(error);
     if (error.status === 403) {
       return res.status(403).json({
         errorMessage:
@@ -502,149 +99,379 @@ router.post("/transaction", async (req, res) => {
       });
     }
   }
-});
-
-// const handleCronJobs = async (email, username, res) => {
-//   try {
-//     nodeCron.schedule("* * * * * *", function () {
-//       sendCronReminderEmails(email, username, res);
-//     });
-//     // emailCron.stop();
-//   } catch (error) {
-//     console.log(error);
-//   }
-// };
-
-const handleCronJobs = async (email, username, deliveryDuration, res) => {
-  try {
-    nodeCron.schedule(`* * */3 ${deliveryDuration} * *`, function () {
-      sendCronReminderEmails(email, username, res);
-    });
-  } catch (error) {
-    console.log(error);
-  }
 };
 
-const sendCronReminderEmails = async (email, username, res) => {
+router.post("/verifyOtp", async (req, res) => {
   try {
-    const buyerMailReminderOptions = {
-      from: process.env.AUTH_EMAIL,
-      to: email,
-      subject: "Good's arrival reminder",
-      html: `
-               <h3>Hello ${username}</h3>
-               <p>This is a reminder that your goods is on it's way.</p>
-               <p>Please reach out if you have issues with the package recieved.</p>
-               <p>Kind regards,</p>
-               <p>Trust X Team.</p>
-          `,
-    };
+    const { userId, otp } = req.body;
 
-    return await transporter.sendMail(buyerMailReminderOptions);
+    const user = await User.findOne({ _id: userId });
+
+    if (!userId || !otp) {
+      return res.status(400).json({
+        errorMessage: "Empty OTP details are not allowed.",
+      });
+    } else {
+      const userOTPVerificationRecords = await OTPVerification.find({
+        userId,
+      });
+
+      if (userOTPVerificationRecords.length <= 0) {
+        return res.status(400).json({
+          errorMessage:
+            "Account record doesn't exist or has been verified already. Please signup or log in",
+        });
+      } else {
+        const { expiresAt } = userOTPVerificationRecords[0];
+        const hashedOtp = userOTPVerificationRecords[0].otp;
+
+        if (expiresAt < Date.now()) {
+          await OTPVerification.deleteMany({ userId });
+          return res.status(400).json({
+            errorMessage: "Code has expired. Please request again.",
+          });
+        } else {
+          const validOtp = await bcrypt.compare(otp, hashedOtp);
+
+          if (!validOtp) {
+            return res.status(400).json({
+              errorMessage: "Invalid code passed. Check your phone inbox.",
+            });
+          } else {
+            await User.updateOne({ _id: userId }, { verified: true });
+            await OTPVerification.deleteMany({ userId });
+
+            return res.status(200).json({
+              successMessage: "Phone Number has been verified.",
+              user: {
+                userType: user.userType,
+                userId: user._id,
+                email: user.email,
+                trustId: user.phone.slice(1),
+              },
+            });
+          }
+        }
+      }
+    }
   } catch (error) {
-    console.log(error);
-  }
-};
-
-router.post("/confirm-goods", async (req, res) => {
-  const { reference, trustId, comments, email } = req.body;
-
-  const result = await Payment.findOne({ reference });
-  const seller = await User.findOne({ trustId });
-  const buyer = await User.findOne({ email });
-
-  if (!result) {
-    return res.status(400).json({ errorMessage: "Invalid payment referennce" });
-  }
-
-  if (result.withdrawalStatus === true) {
-    return res.status(400).json({
-      errorMessage:
-        "OOPS! Goods tagged with this payment reference have already been confirmed.",
+    return res.status(500).json({
+      errorMessage: error.message,
     });
   }
-
-  const data = {
-    withdrawalStatus: true,
-    comments: comments,
-  };
-
-  const response = await Payment.findOneAndUpdate(
-    { reference: req.body.reference },
-    data,
-    {
-      returnDocument: "after",
-    }
-  );
-
-  await User.findOneAndUpdate(
-    { trustId },
-    {
-      successfulTransactions: (seller.successfulTransactions += 1),
-    },
-    {
-      returnDocument: "after",
-    }
-  );
-
-  const sellerMailOptions = {
-    from: process.env.AUTH_EMAIL,
-    to: seller.email,
-    subject: "Confirmed Goods",
-    html: `
-               <h3>Hello, ${seller.username}</h3>
-               <p>The buyer has successfully recieved the items.</p>
-               <p>Therefore, this trannsaction is complete and you can go ahead to withdraw from you wallet </p>
-               <p>Kind regards,</p>
-               <p>Trust X Team.</p>
-          `,
-  };
-
-  const buyerMailOptions = {
-    from: process.env.AUTH_EMAIL,
-    to: buyer.email,
-    subject: "Confirmed Goods",
-    html: `
-               <h3>Hello, ${buyer.username}</h3>
-               <p>Thanks for confirming your goods.</p>
-               <p>Kind regards,</p>
-               <p>Trust X Team.</p>
-          `,
-  };
-
-  await transporter.sendMail(sellerMailOptions);
-  await transporter.sendMail(buyerMailOptions);
-  return res.status(200).json({
-    successMessage: "Thanks for confirming your goods.",
-    paymentInfo: {
-      withdrawalStatus: response.withdrawalStatus,
-    },
-  });
 });
 
-router.get("/logged-user/:id", async (req, res) => {
+
+
+router.post("/signin", async (req, res) => {
+  const { trustId, password } = req.body;
+
+  let formattedTrustId = `0${trustId}`
+
   try {
-    const _id = req.params.id;
-    let result = await User.findById(_id);
-    const user = {
-      avatar: result.avatar,
-      username: result.username,
-      phone: result.phone,
-      email: result.email,
-      goods: result.goods,
-      wallet: result.wallet,
-      successfulTransactions: result.successfulTransactions,
-      transactionsInDispute: result.transactionsInDispute,
-      userType: result.userType,
-      transactions: result.transactions,
-    };
-    return res.status(200).json(user);
+    const user = await User.findOne({ formattedTrustId }).select("+password");
+    if (!user) {
+      return res.status(404).json({ errorMessage: "User Not Found" });
+    }
+
+    if (!user.verified) {
+      return res.status(404).json({
+        errorMessage: "Email has not been verified yet. Check your phone inbox.",
+      });
+    } else {
+      const isMatchPassword = bcrypt.compare(password, user.password);
+
+      if (!isMatchPassword) {
+        return res
+          .status(400)
+          .json({ errorMessage: "Invalid Login Credentials" });
+      }
+
+      const jwtPayload = { _id: user._id };
+
+      const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_EXPIRE,
+      });
+
+      return res.status(200).json({
+        user: {
+          token: accessToken,
+          trustId: user.phone.slice(1),
+          avatar: user.avatar,
+          email: user.email,
+          userType: user.userType
+        }
+      })
+    }
   } catch (error) {
-    console.log(error);
-    res
+    return res
       .status(500)
-      .json({ errorMessage: "Something went wrong, Please try again." });
+      .json({ errorMessage: "Something went wrong, please try again." });
   }
 });
+
+router.post('/new-purchase-escrow', async (req, res) => {
+  try {
+    const { trustId, address, productNarration, phoneNumber, price, deliveryMethod, requestingUser } = req.body;
+
+
+    const trustCode = `${Math.floor(1000 + Math.random() * 9000)}`;
+
+
+
+    let foundBuyer = await User.find({ phone: phoneNumber })
+    let foundSeller = await User.find({ phone: `0${trustId}` })
+
+    if (foundBuyer.mainWalletBalance <= price) {
+      return res.status(404).json({
+        errorMessage: 'Sorry, You do not have Enough fund to perform this transaction. Please fund your wallet and try again.'
+      })
+    }
+
+    let updatedWalletBalance = foundBuyer.mainWalletBalance - price;
+
+    const updatedBuyerProfile = {
+      mainWalletBalance: updatedWalletBalance,
+      escrowWalletBalance: result.escrowWalletBalance += price
+    };
+
+    const updatedSellerProfile = {
+      escrowWalletBalance: foundSeller.escrowWalletBalance += price
+    };
+
+    User.findByIdAndUpdate(foundSeller.id, updatedSellerProfile, {
+      new: true,
+    })
+      .then(() => {
+        return res
+          .status(200)
+          .json({ successMessage: `Seller data was successfully updated` });
+      })
+      .catch(() => {
+        return res.status(500).json({ errorMessage: "Something went wrong" });
+      });
+
+    User.findByIdAndUpdate(foundBuyer.id, updatedBuyerProfile, {
+      new: true,
+    })
+      .then(() => {
+        return res
+          .status(200)
+          .json({ successMessage: `Buyer data was successfully updated` });
+      })
+      .catch(() => {
+        return res.status(500).json({ errorMessage: "Something went wrong" });
+      });
+
+    const newPurchaseEscrowOrder = new PurchaseEscrowOrder({
+      trustId,
+      address,
+      productNarration,
+      phoneNumber,
+      price,
+      deliveryMethod,
+      requestingUser,
+      productTrustCode: trustCode,
+    });
+
+    const message = `
+       A new escrow order has been made to trustID ${trustId} from buyer ${phoneNumber}                                                
+       Please check your email for further details.
+    `
+
+    const client = require('twilio')(accountSid, authToken);
+    client.messages
+      .create({
+        body: message,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: `+234${trustId}`
+      }).catch((error) => {
+        console.log(error);
+      })
+    let result = await newPurchaseEscrowOrder.save();
+    return res.status(200).json({
+      successMessage: "Escrow Order created successfully",
+      data: { trustCode: result.productTrustCode, amount: result.price },
+    });
+
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ errorMessage: "Something went wrong, please try again." });
+  }
+})
+
+
+router.post('/new-standing-escrow', async (req, res) => {
+  try {
+    const { trustId, address, productNarration, phoneNumber, price, deliveryMethod, requestingUserTrustId } = req.body;
+
+    let foundBuyer = await User.find({ phone: phoneNumber })
+    let foundSeller = await User.find({ phone: `0${trustId}` })
+    let foundRequestingUser = await User.find({ phone: `0${requestingUserTrustId}` })
+
+    if (foundRequestingUser.escrowWalletBalance <= price) {
+      return res.status(404).json({
+        errorMessage: 'Sorry, You do not have Enough fund to perform this transaction. Please fund your wallet and try again.'
+      })
+    }
+
+    let updatedEscrowWalletBalance = foundRequestingUser.escrowWalletBalance -= price
+
+    const updatedSellerProfile = {
+      escrowWalletBalance: foundSeller.escrowWalletBalance += price
+    };
+
+    const updatedBuyerProfile = {
+      escrowWalletBalance: updatedEscrowWalletBalance
+    };
+
+    // let updatedWalletBalance = foundBuyer.mainWalletBalance - price;
+
+
+    User.findByIdAndUpdate(foundSeller.id, updatedSellerProfile, {
+      new: true,
+    })
+      .then(() => {
+        return res
+          .status(200)
+          .json({ successMessage: `Seller data was successfully updated` });
+      })
+      .catch(() => {
+        return res.status(500).json({ errorMessage: "Something went wrong" });
+      });
+
+    User.findByIdAndUpdate(foundBuyer.id, updatedBuyerProfile, {
+      new: true,
+    })
+      .then(() => {
+        return res
+          .status(200)
+          .json({ successMessage: `Buyer data was successfully updated` });
+      })
+      .catch(() => {
+        return res.status(500).json({ errorMessage: "Something went wrong" });
+      });
+
+    const newStandingEscrowOrder = new StandingEscrowOrder({
+      trustId,
+      requestingUserTrustId,
+      address,
+      productNarration,
+      phoneNumber,
+      price,
+      deliveryMethod,
+    });
+
+    const message = `
+       A new standing escrow order has been made to trustID ${trustId} from buyer ${phoneNumber}                                                
+       Please check your email for further details.
+    `
+
+    const client = require('twilio')(accountSid, authToken);
+    client.messages
+      .create({
+        body: message,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: `+234${trustId}`
+      }).catch((error) => {
+        console.log(error);
+      })
+    let result = await newStandingEscrowOrder.save();
+    return res.status(200).json({
+      successMessage: "Standing Escrow Order created successfully",
+      data: {
+        trustId: result.trustId,
+        amount: result.price,
+        productName: result.productNarration,
+        status: result.status
+      },
+    });
+
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ errorMessage: "Something went wrong, please try again." });
+  }
+})
+
+router.post('/payment/verify', async (req, res) => {
+  try {
+    const { trustId, reference } = req.body;
+
+    let output = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+      headers: {
+        authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+        "content-type": "application/json",
+        "cache-control": "no-cache",
+      }
+    })
+
+    if (!output.data && output.data.status !== 200) {
+      return res.status(400).json({
+        errorMessage: 'No internet connection'
+      })
+    }
+
+    if (output.data && output.data.data.status !== 'success') {
+      return res.status(400).json({
+        errorMessage: 'Error verifying payment, Unknown transaction reference id'
+      })
+    }
+
+
+    let phoneNumber = `0${trustId}`
+    let user = await User.findOne({ phone: phoneNumber })
+
+    const updatedWallet = {
+      mainWalletBalance: user.mainWalletBalance += output.data.data.amount
+    }
+
+
+    await User.findByIdAndUpdate({ _id: user._id }, updatedWallet, {
+      new: true,
+    });
+
+    return res.status(200).json({
+      successMessage: 'Wallet updated successfully'
+    })
+
+  } catch (error) {
+    return res.status(500).json({
+      errorMessage: 'Something went wrong.'
+    })
+  }
+})
+
+router.post('/payment/withdraw', async (req, res) => {
+  const { amount, trustId } = req.body;
+
+  let phoneNumber = `0${trustId}`
+
+  let user = await User.find({ phone: phoneNumber })
+
+  if (user.mainWalletBalance < amount) {
+    return res.status(400).json({
+      errorMessage: 'You dont have enough funds to perform this transactionn'
+    })
+  }
+
+  const updatedWallet = {
+    mainWalletBalance: user.mainWalletBalance -= amount
+  }
+
+  User.findByIdAndUpdate(user.id, updatedWallet, {
+    new: true,
+  })
+    .then(() => {
+      return res
+        .status(200)
+        .json({ successMessage: `Withdrawal was successful` });
+    })
+    .catch(() => {
+      return res.status(500).json({ errorMessage: "Something went wrong" });
+    });
+})
+
 
 module.exports = router;

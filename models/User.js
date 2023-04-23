@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const { Types } = mongoose;
 
 let UserSchema = new mongoose.Schema(
   {
@@ -9,65 +8,54 @@ let UserSchema = new mongoose.Schema(
     cloudinary_id: {
       type: String,
     },
-    username: {
+    userType: {
       type: String,
+      enum: ["shopper", "freelancer", "dropshipper", "merchant"],
+      default: "shopper",
     },
     phone: {
       type: String,
     },
     email: {
       type: String,
-      required: true,
+      required: false,
+    },
+    firstName: {
+      type: String,
+      required: false,
+    },
+    middleName: {
+      type: String,
+      required: false
+    },
+    surname: {
+      type: String,
+      required: false,
+    },
+    shippingAddress: {
+      type: String,
+      required: false,
+    },
+    category: {
+      type: String,
+      required: false,
     },
     password: {
       type: String,
-    },
-    goods: { type: [String], default: undefined },
-    alternative_email: {
-      type: String,
-    },
-    alternative_phone: {
-      type: String,
+      required: true,
     },
     verified: {
       type: Boolean,
       default: false,
     },
-    trustId: {
-      type: String,
-    },
-    termsAgreement: {
-      type: Boolean,
-      default: false,
-    },
-    wallet: {
+    mainWalletBalance: {
       type: Number,
-      default: "0",
+      default: 0
     },
-    successfulTransactions: {
+    escrowWalletBalance: {
       type: Number,
-      default: "0",
-    },
-    transactionsInDispute: {
-      type: String,
-      default: "0",
-    },
-    userType: {
-      type: String,
-      enum: ["buyer", "seller"],
-      default: "seller",
-    },
-    transactions: [
-      {
-        trustId: String,
-        address: String,
-        deliveryDuration: String,
-        amount: String,
-        commodities: [String],
-        reference: String,
-        status: String,
-      },
-    ],
+      default: 0
+    }
   },
   {
     timestamps: true,

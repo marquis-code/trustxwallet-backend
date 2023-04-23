@@ -1,17 +1,17 @@
-const paystack = (request) => {
-  const MySecretKey = process.env.PAYSTACK_SECRET_KEY;
 
+const MySecretKey = "Bearer sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxx";
+const paystack = (request) => {
+  //replace the secret key with that from your paystack account
   const initializePayment = (form, mycallback) => {
     const options = {
       url: "https://api.paystack.co/transaction/initialize",
       headers: {
-        authorization: `Bearer ${MySecretKey}`,
+        authorization: MySecretKey,
         "content-type": "application/json",
         "cache-control": "no-cache",
       },
       form,
     };
-
     const callback = (error, response, body) => {
       return mycallback(error, body);
     };
@@ -23,7 +23,7 @@ const paystack = (request) => {
       url:
         "https://api.paystack.co/transaction/verify/" + encodeURIComponent(ref),
       headers: {
-        authorization: `Bearer ${MySecretKey}`,
+        authorization: MySecretKey,
         "content-type": "application/json",
         "cache-control": "no-cache",
       },

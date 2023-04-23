@@ -3,6 +3,7 @@ const app = express();
 const morgan = require("morgan");
 const helment = require("helmet");
 const cors = require("cors");
+const bodyParser = require('body-parser');
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -14,10 +15,11 @@ connectDB();
 
 // middleware
 const corsOptions = {
-  // origin:'http://localhost:3000',
   credentials: true, //access-control-allow-credentials:true
   optionSuccessStatus: 200,
 };
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors(corsOptions));
 app.use(morgan("dev"));
 app.use(helment());
@@ -26,12 +28,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 const userRouter = require("./routes/user");
-// const panAfricaRouter = require("./routes/panAfrica");
 
-// map URL starts:
 app.use("/api/user", userRouter);
-// app.use("/api/panAfrica", panAfricaRouter);
-// app.use('/uploads', express.static('uploads'));
 
 app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}`);

@@ -8,11 +8,7 @@ const PaymentSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
-    address: {
-      type: String,
-      required: true,
-    },
-    deliveryDuration: {
+    email: {
       type: String,
       required: true,
     },
@@ -21,20 +17,10 @@ const PaymentSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    commodities : {
-      type : [String],
-    },
     status: {
       type: String,
       required: true,
     },
-    comments: {
-      type : String
-    },
-    withdrawalStatus : {
-      type: Boolean,
-      default: false
-    }
   },
   {
     timestamps: true,
