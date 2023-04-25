@@ -13,12 +13,16 @@ let PurchaseEscrowOrderSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        trustCode: {
+            type: String,
+            required: false,
+        },
         phoneNumber: {
             type: String,
             required: true,
         },
         price: {
-            type: Boolean,
+            type: String,
             default: false,
         },
         deliveryMethod: {
@@ -33,7 +37,7 @@ let PurchaseEscrowOrderSchema = new mongoose.Schema(
         productStatus: {
             type: String,
             enum: ["progress", "completed"],
-            default: 'pending'
+            default: 'progress'
         },
         requestingUser: {
             type: String,

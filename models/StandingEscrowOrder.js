@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 let StandingEscrowOrderSchema = new mongoose.Schema(
     {
-        trustId: {
+        merchantTrustId: {
             type: String,
             required: true
         },
@@ -22,7 +22,7 @@ let StandingEscrowOrderSchema = new mongoose.Schema(
             required: true,
         },
         price: {
-            type: Boolean,
+            type: String,
             default: false,
         },
         deliveryMethod: {
@@ -33,12 +33,12 @@ let StandingEscrowOrderSchema = new mongoose.Schema(
         productStatus: {
             type: String,
             enum: ["progress", "completed"],
-            default: 'pending'
+            default: 'progress'
         },
         requestingUser: {
             type: String,
-            enum: ["shopper", "freelancer", "dropshipper", "merchant"],
-            default: "shopper",
+            enum: ["dropshipper"],
+            default: "dropshipper",
         }
     },
     {

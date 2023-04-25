@@ -4,9 +4,11 @@ let UserSchema = new mongoose.Schema(
   {
     avatar: {
       type: String,
+      required: false
     },
     cloudinary_id: {
       type: String,
+      required: false
     },
     userType: {
       type: String,
@@ -19,6 +21,7 @@ let UserSchema = new mongoose.Schema(
     email: {
       type: String,
       required: false,
+
     },
     firstName: {
       type: String,
@@ -50,12 +53,19 @@ let UserSchema = new mongoose.Schema(
     },
     mainWalletBalance: {
       type: Number,
-      default: 0
+      required: true,
+      default: 0.00
     },
     escrowWalletBalance: {
       type: Number,
-      default: 0
+      required: true,
+      default: 0.00
     }
+    // mainWalletBalance: {
+    //   type: Number,
+    //   default: 0
+    // },
+
   },
   {
     timestamps: true,

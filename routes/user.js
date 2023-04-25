@@ -5,8 +5,10 @@ require("dotenv").config();
 const cloudinary = require("../utils/cloudinary");
 const upload = require("../utils/multer");
 const OTPVerification = require("../models/OTPVerification");
-const Payment = require('../models/Payment');
+const Transactions = require('../models/Transactions');
+const Wallets = require('../models/Wallet');
 const PurchaseEscrowOrder = require("../models/PurchaseEscrowOrder");
+const StandingEscrowOrder = require("../models/StandingEscrowOrder");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const axios = require('axios');
@@ -17,46 +19,57 @@ const authToken = process.env.TWILIO_AUTH_TOKEN;
 
 router.post("/signup", upload.single("profile"), async (req, res) => {
   try {
-    const { email, phone, password, userType } = req.body;
+    const { phone, password, userType } = req.body;
 
     const user = await User.findOne({ phone });
 
-    if (!req.file) {
-      return res
-        .status(400)
-        .json({ errorMessage: "Please upload  profile image" });
-    }
+    // if (!req.file) {
+    //   return res
+    //     .status(400)
+    //     .json({ errorMessage: "Please upload  profile image" });
+    // }
 
     if (user) {
       return res.status(400).json({ errorMessage: "User Already Exist" });
     }
 
-    const upload_response = await cloudinary.uploader.upload(req.file.path);
+
+
+    // const upload_response = await cloudinary.uploader.upload(req.file.path);
 
 
     const salt = await bcrypt.genSalt(10);
     let hashedPassword = await bcrypt.hash(password, salt);
 
+    // let trustId = phone.slice(1);
+
+    // await Wallets.create({ trustId });
+
     const newUser = new User({
-      email,
       phone,
       password: hashedPassword,
       verified: false,
       userType,
-      avatar: upload_response.url,
-      cloudinary_id: upload_response.public_id,
     });
 
     let result = await newUser.save();
 
     await sendOTPVerification(result, res)
+
+    // return res.status(201).json({
+    //   status: true,
+    //   message: 'Account was successfully created.',
+    //   data: result
+    // })
+
   } catch (error) {
-    res.status(500).json({ message: 'Failed to user', })
+    console.log(error);
+    // res.status(500).json({ message: 'Failed to user', })
   }
 });
 
 
-const sendOTPVerification = async ({ _id, email, phone }, res) => {
+const sendOTPVerification = async ({ _id, phone }, res) => {
   try {
     const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
     let message = `
@@ -85,7 +98,7 @@ const sendOTPVerification = async ({ _id, email, phone }, res) => {
       })
     return res.status(200).json({
       successMessage: "Verification OTP sent.",
-      data: { userId: _id, email, phone },
+      data: { userId: _id, phone, },
     });
   } catch (error) {
     if (error.status === 403) {
@@ -143,12 +156,7 @@ router.post("/verifyOtp", async (req, res) => {
 
             return res.status(200).json({
               successMessage: "Phone Number has been verified.",
-              user: {
-                userType: user.userType,
-                userId: user._id,
-                email: user.email,
-                trustId: user.phone.slice(1),
-              },
+              user: user,
             });
           }
         }
@@ -169,7 +177,7 @@ router.post("/signin", async (req, res) => {
   let formattedTrustId = `0${trustId}`
 
   try {
-    const user = await User.findOne({ formattedTrustId }).select("+password");
+    const user = await User.findOne({ phone: formattedTrustId }).select("+password");
     if (!user) {
       return res.status(404).json({ errorMessage: "User Not Found" });
     }
@@ -194,13 +202,8 @@ router.post("/signin", async (req, res) => {
       });
 
       return res.status(200).json({
-        user: {
-          token: accessToken,
-          trustId: user.phone.slice(1),
-          avatar: user.avatar,
-          email: user.email,
-          userType: user.userType
-        }
+        user,
+        accessToken
       })
     }
   } catch (error) {
@@ -222,46 +225,58 @@ router.post('/new-purchase-escrow', async (req, res) => {
     let foundBuyer = await User.find({ phone: phoneNumber })
     let foundSeller = await User.find({ phone: `0${trustId}` })
 
-    if (foundBuyer.mainWalletBalance <= price) {
+    if (!foundBuyer) {
       return res.status(404).json({
-        errorMessage: 'Sorry, You do not have Enough fund to perform this transaction. Please fund your wallet and try again.'
+        errorMessage: 'Shopper does not exist'
       })
     }
 
-    let updatedWalletBalance = foundBuyer.mainWalletBalance - price;
-
-    const updatedBuyerProfile = {
-      mainWalletBalance: updatedWalletBalance,
-      escrowWalletBalance: result.escrowWalletBalance += price
-    };
-
-    const updatedSellerProfile = {
-      escrowWalletBalance: foundSeller.escrowWalletBalance += price
-    };
-
-    User.findByIdAndUpdate(foundSeller.id, updatedSellerProfile, {
-      new: true,
-    })
-      .then(() => {
-        return res
-          .status(200)
-          .json({ successMessage: `Seller data was successfully updated` });
+    if (!foundSeller) {
+      return res.status(404).json({
+        errorMessage: 'Seller does not exist'
       })
-      .catch(() => {
-        return res.status(500).json({ errorMessage: "Something went wrong" });
-      });
+    }
 
-    User.findByIdAndUpdate(foundBuyer.id, updatedBuyerProfile, {
-      new: true,
-    })
-      .then(() => {
-        return res
-          .status(200)
-          .json({ successMessage: `Buyer data was successfully updated` });
-      })
-      .catch(() => {
-        return res.status(500).json({ errorMessage: "Something went wrong" });
-      });
+    // if (foundBuyer.mainWalletBalance <= price) {
+    //   return res.status(404).json({
+    //     errorMessage: 'Sorry, You do not have Enough fund to perform this transaction. Please fund your wallet and try again.'
+    //   })
+    // }
+
+    // let updatedWalletBalance = foundBuyer.mainWalletBalance - price;
+
+    // const updatedBuyerProfile = {
+    //   mainWalletBalance: updatedWalletBalance,
+    //   escrowWalletBalance: result.escrowWalletBalance += price
+    // };
+
+    // const updatedSellerProfile = {
+    //   escrowWalletBalance: foundSeller.escrowWalletBalance += price
+    // };
+
+    // User.findByIdAndUpdate(foundSeller.id, updatedSellerProfile, {
+    //   new: true,
+    // })
+    //   .then(() => {
+    //     return res
+    //       .status(200)
+    //       .json({ successMessage: `Seller data was successfully updated` });
+    //   })
+    //   .catch(() => {
+    //     return res.status(500).json({ errorMessage: "Something went wrong" });
+    //   });
+
+    // User.findByIdAndUpdate(foundBuyer.id, updatedBuyerProfile, {
+    //   new: true,
+    // })
+    //   .then(() => {
+    //     return res
+    //       .status(200)
+    //       .json({ successMessage: `Buyer data was successfully updated` });
+    //   })
+    //   .catch(() => {
+    //     return res.status(500).json({ errorMessage: "Something went wrong" });
+    //   });
 
     const newPurchaseEscrowOrder = new PurchaseEscrowOrder({
       trustId,
@@ -295,76 +310,88 @@ router.post('/new-purchase-escrow', async (req, res) => {
     });
 
   } catch (error) {
-    return res
-      .status(500)
-      .json({ errorMessage: "Something went wrong, please try again." });
+    console.log(error);
+    // return res
+    //   .status(500)
+    //   .json({ errorMessage: "Something went wrong, please try again." });
   }
 })
 
 
 router.post('/new-standing-escrow', async (req, res) => {
   try {
-    const { trustId, address, productNarration, phoneNumber, price, deliveryMethod, requestingUserTrustId } = req.body;
+    const { merchantTrustId, address, productNarration, phoneNumber, price, deliveryMethod, requestingUserTrustId, requestingUser } = req.body;
 
-    let foundBuyer = await User.find({ phone: phoneNumber })
-    let foundSeller = await User.find({ phone: `0${trustId}` })
-    let foundRequestingUser = await User.find({ phone: `0${requestingUserTrustId}` })
+    // let foundBuyer = await User.find({ phone: phoneNumber })
+    // let foundSeller = await User.find({ phone: `0${trustId}` })
+    let foundRequestingUser = await User.findOne({ phone: `0${requestingUserTrustId}` })
 
-    if (foundRequestingUser.escrowWalletBalance <= price) {
-      return res.status(404).json({
-        errorMessage: 'Sorry, You do not have Enough fund to perform this transaction. Please fund your wallet and try again.'
-      })
+    let foundMerchant = await User.findOne({ phone: `0${merchantTrustId}` })
+
+    if (!foundRequestingUser) {
+      return res.status(404).json({ errorMessage: `${requestingUser} with Trust ID was Not Found` });
     }
 
-    let updatedEscrowWalletBalance = foundRequestingUser.escrowWalletBalance -= price
+    if (!foundMerchant) {
+      return res.status(404).json({ errorMessage: "Merchant with Trust ID was not found" });
+    }
 
-    const updatedSellerProfile = {
-      escrowWalletBalance: foundSeller.escrowWalletBalance += price
-    };
+    // if (foundRequestingUser.escrowWalletBalance <= price) {
+    //   return res.status(404).json({
+    //     errorMessage: 'Sorry, You do not have Enough fund to perform this transaction. Please fund your wallet and try again.'
+    //   })
+    // }
 
-    const updatedBuyerProfile = {
-      escrowWalletBalance: updatedEscrowWalletBalance
-    };
+    // let updatedEscrowWalletBalance = foundRequestingUser.escrowWalletBalance -= price'
+
+    // const updatedSellerProfile = {
+    //   escrowWalletBalance: foundSeller.escrowWalletBalance += price
+    // };
+
+    // const updatedBuyerProfile = {
+    //   escrowWalletBalance: updatedEscrowWalletBalance
+    // };
 
     // let updatedWalletBalance = foundBuyer.mainWalletBalance - price;
 
 
-    User.findByIdAndUpdate(foundSeller.id, updatedSellerProfile, {
-      new: true,
-    })
-      .then(() => {
-        return res
-          .status(200)
-          .json({ successMessage: `Seller data was successfully updated` });
-      })
-      .catch(() => {
-        return res.status(500).json({ errorMessage: "Something went wrong" });
-      });
+    // User.findByIdAndUpdate(foundSeller.id, updatedSellerProfile, {
+    //   new: true,
+    // })
+    //   .then(() => {
+    //     return res
+    //       .status(200)
+    //       .json({ successMessage: `Seller data was successfully updated` });
+    //   })
+    //   .catch(() => {
+    //     return res.status(500).json({ errorMessage: "Something went wrong" });
+    //   });
 
-    User.findByIdAndUpdate(foundBuyer.id, updatedBuyerProfile, {
-      new: true,
-    })
-      .then(() => {
-        return res
-          .status(200)
-          .json({ successMessage: `Buyer data was successfully updated` });
-      })
-      .catch(() => {
-        return res.status(500).json({ errorMessage: "Something went wrong" });
-      });
+    // User.findByIdAndUpdate(foundBuyer.id, updatedBuyerProfile, {
+    //   new: true,
+    // })
+    //   .then(() => {
+    //     return res
+    //       .status(200)
+    //       .json({ successMessage: `Buyer data was successfully updated` });
+    //   })
+    //   .catch(() => {
+    //     return res.status(500).json({ errorMessage: "Something went wrong" });
+    //   });
 
     const newStandingEscrowOrder = new StandingEscrowOrder({
-      trustId,
+      merchantTrustId,
       requestingUserTrustId,
       address,
       productNarration,
       phoneNumber,
       price,
       deliveryMethod,
+      requestingUser
     });
 
     const message = `
-       A new standing escrow order has been made to trustID ${trustId} from buyer ${phoneNumber}                                                
+       A new standing escrow order has been made to trustID ${merchantTrustId} from buyer ${phoneNumber}                                                
        Please check your email for further details.
     `
 
@@ -373,39 +400,37 @@ router.post('/new-standing-escrow', async (req, res) => {
       .create({
         body: message,
         from: process.env.TWILIO_PHONE_NUMBER,
-        to: `+234${trustId}`
+        to: `+234${merchantTrustId}`
       }).catch((error) => {
         console.log(error);
       })
     let result = await newStandingEscrowOrder.save();
     return res.status(200).json({
       successMessage: "Standing Escrow Order created successfully",
-      data: {
-        trustId: result.trustId,
-        amount: result.price,
-        productName: result.productNarration,
-        status: result.status
-      },
+      data: result,
     });
 
   } catch (error) {
-    return res
-      .status(500)
-      .json({ errorMessage: "Something went wrong, please try again." });
+    console.log(error);
+    // return res
+    //   .status(500)
+    //   .json({ errorMessage: "Something went wrong, please try again." });
   }
 })
 
-router.post('/payment/verify', async (req, res) => {
+router.post('/transaction/verify', async (req, res) => {
   try {
-    const { trustId, reference } = req.body;
+    const { trustId, amount, reference } = req.body;
 
-    let output = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+    let output = await axios.get(`https://api-d.squadco.com/transaction/verify/${reference}`, {
       headers: {
-        authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+        authorization: `Bearer ${process.env.SQUADCO_SECRET_KEY}`,
         "content-type": "application/json",
         "cache-control": "no-cache",
       }
     })
+
+    console.log(output);
 
     if (!output.data && output.data.status !== 200) {
       return res.status(400).json({
@@ -413,7 +438,7 @@ router.post('/payment/verify', async (req, res) => {
       })
     }
 
-    if (output.data && output.data.data.status !== 'success') {
+    if (output.data && output.data.data.transaction_status !== 'Success') {
       return res.status(400).json({
         errorMessage: 'Error verifying payment, Unknown transaction reference id'
       })
@@ -432,13 +457,29 @@ router.post('/payment/verify', async (req, res) => {
       new: true,
     });
 
+    let previousBalance = user.mainWalletBalance
+    let newBalance = user.mainWalletBalance += amount
+
+    let newTransaction = new Transactions({
+      trnxType: 'CR',
+      purpose: 'deposit',
+      trustId: trustId,
+      amount: amount,
+      reference: reference,
+      trnxSummary: 'Fund wallet',
+      balanceBefore: previousBalance,
+      balanceAfter: newBalance
+    })
+
+    await newTransaction.save();
+
     return res.status(200).json({
       successMessage: 'Wallet updated successfully'
     })
 
   } catch (error) {
     return res.status(500).json({
-      errorMessage: 'Something went wrong.'
+      errorMessage: error.response.data.message
     })
   }
 })
@@ -471,6 +512,92 @@ router.post('/payment/withdraw', async (req, res) => {
     .catch(() => {
       return res.status(500).json({ errorMessage: "Something went wrong" });
     });
+})
+
+
+router.post('/release-fund', async (req, res) => {
+  const { trustCode, merchantTrustId } = req.body;
+
+  const order = await PurchaseEscrowOrder.findOne({ trustCode });
+
+
+  if (!order) {
+    return res.status(400).json({
+      errorMessage: `Escrow order with trust code ${trustCode} was not found.`
+    })
+  }
+
+  const user = await User.findOne({ trustId: order.trustId });
+
+  const merchant = await User.findOne({ trustId: merchantTrustId });
+
+  if (!user) {
+    return res.status(400).json({
+      errorMessage: `User with trust Id ${order.trustId} was not found.`
+    })
+  }
+
+  const updatedBuyerProfile = {
+    mainWalletBalance: user.mainWalletBalance -= order.price
+  }
+
+  const updatedSellerProfile = {
+    mainWalletBalance: merchant.mainWalletBalance += order.price
+  }
+
+  User.findByIdAndUpdate(user.id, updatedBuyerProfile, {
+    new: true,
+  })
+    .then(() => {
+      return res
+        .status(200)
+        .json({ successMessage: 'Funds was successfully removed from buyers account.' });
+    })
+    .catch(() => {
+      return res.status(500).json({ errorMessage: "Something went wrong. Please try again." });
+    });
+
+
+  User.findByIdAndUpdate(merchant.id, updatedSellerProfile, {
+    new: true,
+  })
+    .then(() => {
+      return res
+        .status(200)
+        .json({ successMessage: 'Funds was successfully added to sellers account.' });
+    })
+    .catch(() => {
+      return res.status(500).json({ errorMessage: "Something went wrong. Please try again." });
+    });
+
+  // let member = await Member.findById(_id);
+  await order.remove();
+
+  return res
+    .status(200)
+    .json({ successMessage: 'Fund release was sucessful.' });
+
+})
+
+router.post('/withdraw', async (req, res) => {
+  const { amount, trustId } = req.body;
+  const user = await User.findOne({ trustId })
+  const updatedSellerProfile = {
+    mainWalletBalance: user.mainWalletBalance -= amount
+  }
+
+  User.findByIdAndUpdate(user.id, updatedSellerProfile, {
+    new: true,
+  })
+    .then(() => {
+      return res
+        .status(200)
+        .json({ successMessage: 'Withdrawal was successful. Please check your bank.' });
+    })
+    .catch(() => {
+      return res.status(500).json({ errorMessage: "Something went wrong. Please try again." });
+    });
+
 })
 
 
