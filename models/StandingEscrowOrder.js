@@ -30,6 +30,7 @@ let StandingEscrowOrderSchema = new mongoose.Schema(
             enum: ["logX", "alternative"],
             default: "logX",
         },
+        
         productStatus: {
             type: String,
             enum: ["progress", "completed"],

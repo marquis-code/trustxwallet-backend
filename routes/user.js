@@ -68,6 +68,52 @@ router.post("/signup", upload.single("profile"), async (req, res) => {
   }
 });
 
+router.post('/update-profile/:id', upload.single("profile"), async (req, res) => {
+  try {
+    let user = await User.findById(req.params.id);
+    if (user.cloudinary_id) {
+      await cloudinary.uploader.destroy(user.cloudinary_id);
+    }
+
+    let result;
+
+    if (req.file) {
+      result = await cloudinary.uploader.upload(req.file.path);
+    }
+
+    if (!user) {
+      return res.status(400).json({
+        errorMessage: `User with ${req.params.id} does not exist.`
+      })
+    }
+
+    const data = {
+      firstName: req.body.firstName || user.firstName,
+      middleName: req.body.firstName || user.middleName,
+      surname: req.body.surname || user.surname,
+      shippingAddress: req.body.shippingAddress || user.shippingAddress,
+      phone: req.body.phone || user.phone,
+      category: req.body.category || user.category,
+      avatar: result?.secure_url || user.avatar,
+      cloudinary_id: result?.public_id || user.cloudinary_id,
+    };
+
+    user = await User.findByIdAndUpdate(req.params.id, data, {
+      new: true,
+    });
+
+    return res.status(200).json({
+      successMessage: 'Profile was successfully updated',
+    });
+  } catch (error) {
+    return res.status(500).json({ errorMessage: "Something went wrong" });
+  }
+})
+
+router.post('/credit-wallet', (req, res) => {
+  const { trustCode } = req.body;
+})
+
 
 const sendOTPVerification = async ({ _id, phone }, res) => {
   try {
@@ -218,6 +264,8 @@ router.post('/new-purchase-escrow', async (req, res) => {
     const { trustId, address, productNarration, phoneNumber, price, deliveryMethod, requestingUser } = req.body;
 
 
+
+
     const trustCode = `${Math.floor(1000 + Math.random() * 9000)}`;
 
 
@@ -322,7 +370,7 @@ router.post('/new-standing-escrow', async (req, res) => {
   try {
     const { merchantTrustId, address, productNarration, phoneNumber, price, deliveryMethod, requestingUserTrustId, requestingUser } = req.body;
 
-    // let foundBuyer = await User.find({ phone: phoneNumber })
+    // let foundBuyer = await User.find({ phone: `0${requestingUserTrustId}` })
     // let foundSeller = await User.find({ phone: `0${trustId}` })
     let foundRequestingUser = await User.findOne({ phone: `0${requestingUserTrustId}` })
 
@@ -331,6 +379,23 @@ router.post('/new-standing-escrow', async (req, res) => {
     if (!foundRequestingUser) {
       return res.status(404).json({ errorMessage: `${requestingUser} with Trust ID was Not Found` });
     }
+
+    const updatedDropShipperProfile = {
+      escrowWalletBalance: foundRequestingUser.escrowWalletBalance -= price,
+      standingEscrowBalance: foundRequestingUser.standingEscrowBalance += price
+    }
+
+    User.findByIdAndUpdate(foundRequestingUser.id, updatedDropShipperProfile, {
+      new: true,
+    })
+      .then(() => {
+        return res
+          .status(200)
+          .json({ successMessage: `Seller data was successfully updated` });
+      })
+      .catch(() => {
+        return res.status(500).json({ errorMessage: "Something went wrong" });
+      });
 
     if (!foundMerchant) {
       return res.status(404).json({ errorMessage: "Merchant with Trust ID was not found" });
@@ -379,6 +444,8 @@ router.post('/new-standing-escrow', async (req, res) => {
     //     return res.status(500).json({ errorMessage: "Something went wrong" });
     //   });
 
+
+
     const newStandingEscrowOrder = new StandingEscrowOrder({
       merchantTrustId,
       requestingUserTrustId,
@@ -418,13 +485,79 @@ router.post('/new-standing-escrow', async (req, res) => {
   }
 })
 
+// router.post('/transaction/verify', async (req, res) => {
+//   try {
+//     const { trustId, amount, reference } = req.body;
+
+//     let output = await axios.get(`https://api-d.squadco.com/transaction/verify/${reference}`, {
+//       headers: {
+//         authorization: `Bearer ${process.env.SQUADCO_SECRET_KEY}`,
+//         "content-type": "application/json",
+//         "cache-control": "no-cache",
+//       }
+//     })
+
+//     console.log(output);
+
+//     if (!output.data && output.data.status !== 200) {
+//       return res.status(400).json({
+//         errorMessage: 'No internet connection'
+//       })
+//     }
+
+//     if (output.data && output.data.data.transaction_status !== 'Success') {
+//       return res.status(400).json({
+//         errorMessage: 'Error verifying payment, Unknown transaction reference id'
+//       })
+//     }
+
+
+//     let phoneNumber = `0${trustId}`
+//     let user = await User.findOne({ phone: phoneNumber })
+
+//     const updatedWallet = {
+//       mainWalletBalance: user.mainWalletBalance += output.data.data.amount
+//     }
+
+
+//     await User.findByIdAndUpdate({ _id: user._id }, updatedWallet, {
+//       new: true,
+//     });
+
+//     let previousBalance = user.mainWalletBalance
+//     let newBalance = user.mainWalletBalance += amount
+
+//     let newTransaction = new Transactions({
+//       trnxType: 'CR',
+//       purpose: 'deposit',
+//       trustId: trustId,
+//       amount: amount,
+//       reference: reference,
+//       trnxSummary: 'Fund wallet',
+//       balanceBefore: previousBalance,
+//       balanceAfter: newBalance
+//     })
+
+//     await newTransaction.save();
+
+//     return res.status(200).json({
+//       successMessage: 'Wallet updated successfully'
+//     })
+
+//   } catch (error) {
+//     return res.status(500).json({
+//       errorMessage: error.response.data.message
+//     })
+//   }
+// })
+
 router.post('/transaction/verify', async (req, res) => {
   try {
     const { trustId, amount, reference } = req.body;
 
-    let output = await axios.get(`https://api-d.squadco.com/transaction/verify/${reference}`, {
+    let output = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
-        authorization: `Bearer ${process.env.SQUADCO_SECRET_KEY}`,
+        authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
         "content-type": "application/json",
         "cache-control": "no-cache",
       }
@@ -542,7 +675,8 @@ router.post('/release-fund', async (req, res) => {
   }
 
   const updatedSellerProfile = {
-    mainWalletBalance: merchant.mainWalletBalance += order.price
+    mainWalletBalance: merchant.mainWalletBalance -= order.price,
+    netProfitBalance: merchant.netProfitBalance += ((7.5 * order.price) / 100)
   }
 
   User.findByIdAndUpdate(user.id, updatedBuyerProfile, {

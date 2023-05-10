@@ -60,6 +60,16 @@ let UserSchema = new mongoose.Schema(
       type: Number,
       required: true,
       default: 0.00
+    },
+    netProfitBalance: {
+      type: Number,
+      required: true,
+      default: 0.00
+    },
+    standingEscrowBalance: {
+      type: Number,
+      required: true,
+      default: 0.00
     }
     // mainWalletBalance: {
     //   type: Number,
