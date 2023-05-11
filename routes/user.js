@@ -563,7 +563,6 @@ router.post('/transaction/verify', async (req, res) => {
       }
     })
 
-    console.log(output);
 
     if (!output.data && output.data.status !== 200) {
       return res.status(400).json({
