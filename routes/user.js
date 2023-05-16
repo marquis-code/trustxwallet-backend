@@ -15,6 +15,7 @@ const axios = require('axios');
 const _ = require('lodash');
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
+const PAYSTACK_SECRET_KEY = 'sk_live_c6e48951ea505ee01d035de53026cb9fb48a614a'
 
 
 router.post("/signup", upload.single("profile"), async (req, res) => {
@@ -557,20 +558,21 @@ router.post('/transaction/verify', async (req, res) => {
 
     let output = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
-        authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
         "content-type": "application/json",
         "cache-control": "no-cache",
       }
     })
 
 
-    if (!output.data && output.data.status !== 200) {
+
+    if (!output.data && output.data.status !== true) {
       return res.status(400).json({
         errorMessage: 'No internet connection'
       })
     }
 
-    if (output.data && output.data.data.transaction_status !== 'Success') {
+    if (output.data && output.data.data.status !== 'success') {
       return res.status(400).json({
         errorMessage: 'Error verifying payment, Unknown transaction reference id'
       })
@@ -579,15 +581,6 @@ router.post('/transaction/verify', async (req, res) => {
 
     let phoneNumber = `0${trustId}`
     let user = await User.findOne({ phone: phoneNumber })
-
-    const updatedWallet = {
-      mainWalletBalance: user.mainWalletBalance += output.data.data.amount
-    }
-
-
-    await User.findByIdAndUpdate({ _id: user._id }, updatedWallet, {
-      new: true,
-    });
 
     let previousBalance = user.mainWalletBalance
     let newBalance = user.mainWalletBalance += amount
@@ -605,8 +598,24 @@ router.post('/transaction/verify', async (req, res) => {
 
     await newTransaction.save();
 
+    const updatedWallet = {
+      mainWalletBalance: user.mainWalletBalance += output.data.data.amount / 100
+    }
+
+
+    await User.findByIdAndUpdate({ _id: user._id }, updatedWallet, {
+      new: true,
+    });
+
+
+
     return res.status(200).json({
-      successMessage: 'Wallet updated successfully'
+      successMessage: 'Wallet updated successfully',
+      wallet: {
+        mainWalletBalance: user.mainWalletBalance,
+        escrowWalletBalance: user.escrowWalletBalance
+
+      }
     })
 
   } catch (error) {
@@ -732,6 +741,20 @@ router.post('/withdraw', async (req, res) => {
     });
 
 })
+
+router.get("/transactions/:trustId", async (req, res) => {
+  const userTrustId = req.params.trustId;
+  try {
+    const transactions = await Transactions.aggregate([
+      { $match: { trustId: userTrustId } },
+    ]);
+    return res.status(200).json(transactions);
+  } catch (error) {
+    return res.status(500).json({
+      errorMessage: "Something went wrong. Please try again later",
+    });
+  }
+});
 
 
 module.exports = router;
