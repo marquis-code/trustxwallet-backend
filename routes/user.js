@@ -19,7 +19,7 @@ const authToken = process.env.TWILIO_AUTH_TOKEN;
 
 router.post("/signup", upload.single("profile"), async (req, res) => {
   try {
-    const { phone, password, userType } = req.body;
+    const { phone, password, userType, email } = req.body;
 
     const user = await User.findOne({ phone });
 
@@ -49,6 +49,7 @@ router.post("/signup", upload.single("profile"), async (req, res) => {
       phone,
       password: hashedPassword,
       verified: false,
+      email,
       userType,
     });
 
