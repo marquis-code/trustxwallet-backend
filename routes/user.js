@@ -15,7 +15,6 @@ const axios = require('axios');
 const _ = require('lodash');
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const PAYSTACK_SECRET_KEY = 'sk_live_c6e48951ea505ee01d035de53026cb9fb48a614a'
 
 
 router.post("/signup", upload.single("profile"), async (req, res) => {
@@ -558,7 +557,7 @@ router.post('/transaction/verify', async (req, res) => {
 
     let output = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
-        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
         "content-type": "application/json",
         "cache-control": "no-cache",
       }
