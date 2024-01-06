@@ -13,6 +13,9 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const axios = require('axios');
 const _ = require('lodash');
+const twilio = require('twilio');
+const MessagingResponse = twilio.twiml.MessagingResponse;
+const client = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 
@@ -139,19 +142,19 @@ const sendOTPVerification = async ({ _id, phone }, res) => {
       .create({
         body: message,
         from: process.env.TWILIO_PHONE_NUMBER,
-        to: `+234${phone.slice(1)}`
+        to: '+12017309234'
       }).catch((error) => {
         console.log(error);
       })
     return res.status(200).json({
       successMessage: "Verification OTP sent.",
-      data: { userId: _id, phone, },
+      data: { userId: _id, phone, message, otp },
     });
   } catch (error) {
     if (error.status === 403) {
       return res.status(403).json({
         errorMessage:
-          "OOPS! This Recieprnt is not authorized on the email serveice. Please Upgrade your email plan",
+          "OOPS! This Reciepient is not authorized on the email service. Please Upgrade your email plan",
       });
     } else {
       return res.status(500).json({
